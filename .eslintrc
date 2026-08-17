@@ -1,0 +1,19 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "plugins": ["@typescript-eslint", "prettier"],
+    "extends": ["plugin:@typescript-eslint/recommended", "prettier"],
+    "rules": {
+        "prettier/prettier": ["warn"],
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "curly": ["error", "all"]
+    },
+    "overrides": [
+        {
+            "files": ["*.ts", "*.tsx"],
+            "rules": {
+                "@typescript-eslint/explicit-function-return-type": "error"
+            }
+        }
+    ],
+    "ignorePatterns": ["*.d.ts", ".next", "node_modules"]
+}

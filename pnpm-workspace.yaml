@@ -1,0 +1,4 @@
+shamefullyHoist: true
+confirmModulesPurge: false
+allowBuilds:
+    sharp: true
