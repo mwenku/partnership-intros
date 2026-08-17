@@ -44,7 +44,7 @@ function buildSearchQuery(search: string, brief: VendorBriefType): string {
         search,
         formatBrief(brief),
         'Find people who could be recruited as external partners for this vendor.',
-        'This is partner recruitment, not a sales pitch for Souk.',
+        'This is partner recruitment, not a product sales pitch.',
     ].join('\n')
 }
 
@@ -69,7 +69,7 @@ function researchEnrichments(brief: VendorBriefType): Array<{
         {
             description: tagged(
                 'email',
-                'Verified public work email for this person if available. Return null if it cannot be verified from a public source.',
+                'Public work email for this person at their current employer, preferably on the employer domain. Return only an address verified from a public source.',
             ),
             format: 'email',
             metadata: { key: 'email' },
@@ -93,7 +93,7 @@ function researchEnrichments(brief: VendorBriefType): Array<{
         {
             description: tagged(
                 'signals',
-                `Find two or three partnership-relevant signals for this person or their firm that could support email personalisation. Signals may include customers, services, implementations, integrations, partnerships, responsibilities, product announcements, articles or talks. Each signal must include a source URL. Do not include unrelated personal facts.\n\n${vendorContext}`,
+                `Find two or three partnership-relevant signals for this person or their firm. Phrase each as a concrete fact that could be used in a partner email: customers, services, implementations, integrations, partnerships, product announcements, articles or talks. Each signal must include a source URL. Do not include unrelated personal facts.\n\n${vendorContext}`,
             ),
             format: 'text',
             metadata: { key: 'signals' },
@@ -101,7 +101,7 @@ function researchEnrichments(brief: VendorBriefType): Array<{
         {
             description: tagged(
                 'selectedSignal',
-                `Select the single best signal for personalising a partner-recruitment email to this person on behalf of the vendor below. Explain in one or two sentences why that signal shows the partnership fits. Do not choose trivia.\n\n${vendorContext}`,
+                `Select the single best signal for personalising a partner-recruitment email to this person on behalf of the vendor below. Write it as one email-ready sentence, then one sentence on why it shows the partnership fits. Include the source URL. Do not choose trivia.\n\n${vendorContext}`,
             ),
             format: 'text',
             metadata: { key: 'selectedSignal' },
@@ -109,31 +109,73 @@ function researchEnrichments(brief: VendorBriefType): Array<{
     ]
 }
 
-function emailEnrichmentDescription(brief: VendorBriefType, pass: 1 | 2): string {
-    const vendorContext = formatBrief(brief)
-    const shared = `
-Souk would send this sequence on behalf of ${brief.vendorName} to a cold external partner prospect.
+function emailSequenceInstructions(brief: VendorBriefType): string {
+    return `Write this sequence as an introduction to a partnership with ${brief.vendorName} for a cold external partner prospect.
 These are drafts for review only. Do not send them. The prototype stops at reviewed sequences ready for potential use.
-Do not sell Souk. Recruit the recipient as a partner for ${brief.vendorName}.
+Do not mention Souk. Recruit the recipient as a partner for ${brief.vendorName}.
 
-${vendorContext}
+Write like a senior Partner Development Manager: commercially specific, evidence-backed, concise, no hype.
 
-Return exactly four concise plain-text emails, labelled:
+Generate exactly four concise, plain-text emails for every prospect.
+
+The emails introduce the vendor partnership directly to the external partner prospect.
+
+Return exactly four emails, labelled:
 
 EMAIL 1
 EMAIL 2
 EMAIL 3
 EMAIL 4
 
-Each email should be short. No HTML. No generic lines such as "just checking in" or "bumping this".
-Personalisation must explain why the partnership fits, using sourced facts about this person and their firm.
-Unsupported claims must not appear.
+Each email:
+- Maximum 110 words
+- No HTML, bullets, markdown, or placeholders
+- First line: Subject: <specific subject>
+- Open with Hi <first name>,
+- Close as ${brief.vendorName}
+- End with a direct question that uses one of: call, chat, conversation, meeting, explore, discuss, review
 
-EMAIL 1: Introduce the partnership opportunity, why this company and person appear relevant, the partner's potential value, one evidence-backed hook, and a low-friction ask.
-EMAIL 2: Add a new sourced proof point. Do not repeat email 1.
-EMAIL 3: Make the partner's gain concrete: delivery motion, existing accounts, or what they would actually do.
-EMAIL 4: Add one last useful sourced fact and a respectful, easy yes/no close.
-`.trim()
+The sequence should:
+- Introduce the partnership opportunity.
+- Lead every email with what the recipient gains if they partner, and why they should say yes.
+- Explain why the company and person appear relevant.
+- Use relevant, evidence-backed personalisation.
+- Add useful new information in each follow-up.
+- End with a respectful, low-friction close.
+- Avoid generic follow-ups such as "just checking in" or "bumping this."
+
+People act in their own interest. Every email must answer: what do they gain, and why should they partner.
+
+EMAIL 1: Open with the commercial gain for them if they partner with ${brief.vendorName}. Then why this company and this person are the right fit. One evidence-backed hook. Do not mention Souk. End with a low-friction question.
+
+EMAIL 2: Add a new sourced fact with a URL. Tie that fact to a gain for them that was not the same sentence as email 1. Do not repeat email 1.
+
+EMAIL 3: Make the gain concrete: what they get for their current clients or accounts, and why that is worth partnering. Paste a full source URL from the research. Do not repeat emails 1 or 2. Do not paste the brief's contribute/gain lists.
+
+EMAIL 4: Restate the gain in one line. Add one last useful sourced fact with a URL that was not used earlier. Include the sentence: If this is not a priority, a no is completely fine. Then a direct question.
+
+Personalisation should explain why the opportunity fits.
+Do not include unrelated personal facts merely to make the email appear personalised.
+Do not invent customers, metrics, or capabilities.
+Use only facts present in the research context.
+
+Craft rules:
+- Address the recipient as you. Never describe them in the third person.
+- Greet with their given name only. Never use a title, credential, or initials such as MCMI or MCIPD.
+- Do not paste research notes, LinkedIn headlines, or vendor brief fields verbatim.
+- Do not dump comma-separated lists of contributions, gains, or target customers.
+- Each email must use a different proof point and a different URL. Prefer a company, case-study, or news URL over a LinkedIn profile URL.
+- Subject lines must name the prospect company or a specific proof. Do not use subjects such as Final note, Sourced proof, or Partnership opportunity.
+- One idea and one link per email.
+- Put a blank line between the subject, greeting, body, question, and sign-off.
+
+${formatBrief(brief)}
+
+Primary objective: secure interest in a first partner conversation for ${brief.vendorName}.`
+}
+
+function emailEnrichmentDescription(brief: VendorBriefType, pass: 1 | 2): string {
+    const shared = emailSequenceInstructions(brief)
 
     if (pass === 1) {
         return tagged(
@@ -145,11 +187,15 @@ EMAIL 4: Add one last useful sourced fact and a respectful, easy yes/no close.
     return tagged(
         'emailsV2',
         `Rewrite a stronger four-email partner recruitment sequence for this person.
+Improve the previous draft on the partner's gain, fit, and sourced specificity.
 Use only facts that have public sources. If a fact is unverified, omit it.
 Each follow-up must add a new sourced fact rather than bumping the previous note.
 The selected personalisation signal must explain fit with ${brief.vendorName}.
+If the previous draft pasted brief lists or wrote about the person in the third person, rewrite those sentences as you-facing commercial copy.
+Do not reuse a URL or proof point from an earlier email in the sequence.
 Do not include unrelated personal details.
-Do not pitch Souk.
+Do not mention Souk.
+Do not repeat any sentence from the previous draft.
 
 ${shared}`,
     )
@@ -290,6 +336,7 @@ export {
     buildSearchQuery,
     collectSources,
     emailEnrichmentDescription,
+    emailSequenceInstructions,
     enrichmentKey,
     formatBrief,
     hasEnrichmentKey,

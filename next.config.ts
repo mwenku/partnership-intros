@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-    serverExternalPackages: ['exa-js'],
+    serverExternalPackages: ['@tavily/core'],
 }
 
 export default nextConfig

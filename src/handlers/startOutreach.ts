@@ -1,24 +1,10 @@
 import { setStoredBrief } from '../clients/briefStore'
-import { getExa } from '../clients/exa'
+import { getTavily } from '../clients/tavily'
 import { logger } from '../logger'
-import { apiResponse, APIResponse, internalError, successResponse, validationError } from '../utils/endpointResponses'
-import { apiKeyFingerprint, exaErrorFields } from '../utils/exaLogs'
+import { APIResponse, internalError, successResponse, validationError } from '../utils/endpointResponses'
+import { apiKeyFingerprint, errorFields } from '../utils/errorLogs'
 import { buildSearchQuery, researchEnrichments, websetMetadata } from '../utils/webset'
 import { OutreachRequest } from '../zod-schemas'
-
-function isUnauthorizedExaError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-        logger.info('startOutreach error is not an Error instance')
-        return false
-    }
-
-    if (error.message.includes('Unauthorized') || error.message.includes('does not have access to the API')) {
-        logger.warn('Exa unauthorized error', { message: error.message })
-        return true
-    }
-
-    return false
-}
 
 async function startOutreach(body: unknown): Promise<APIResponse> {
     try {
@@ -34,9 +20,9 @@ async function startOutreach(body: unknown): Promise<APIResponse> {
         })
 
         const { search, brief } = parsed.data
-        const exa = getExa()
+        const tavily = getTavily()
 
-        const webset = await exa.websets.create({
+        const webset = await tavily.websets.create({
             search: {
                 query: buildSearchQuery(search, brief),
                 count: 5,
@@ -63,18 +49,13 @@ async function startOutreach(body: unknown): Promise<APIResponse> {
 
         return successResponse({
             websetId: webset.id,
-            dashboardUrl: webset.dashboardUrl || (webset as { dashboard_url?: string }).dashboard_url || '',
+            dashboardUrl: webset.dashboardUrl || '',
         })
     } catch (error) {
         logger.error('startOutreach error', error as Error, {
-            apiKey: apiKeyFingerprint(process.env.EXA_API_KEY),
-            ...exaErrorFields(error),
+            apiKey: apiKeyFingerprint(process.env.TAVILY_API_KEY),
+            ...errorFields(error),
         })
-
-        if (isUnauthorizedExaError(error)) {
-            logger.warn('returning 401 for unauthorized Exa error')
-            return apiResponse(401, (error as Error).message)
-        }
 
         logger.info('returning internal error from startOutreach')
         return internalError()

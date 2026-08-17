@@ -1,8 +1,8 @@
 import { getStoredBrief } from '../clients/briefStore'
-import { getExa, getWebsetWithItems } from '../clients/exa'
+import { getTavily, getWebsetWithItems } from '../clients/tavily'
 import { logger } from '../logger'
 import { apiResponse, APIResponse, internalError, successResponse } from '../utils/endpointResponses'
-import { apiKeyFingerprint, exaErrorFields } from '../utils/exaLogs'
+import { apiKeyFingerprint, errorFields } from '../utils/errorLogs'
 import { mapProspects } from '../utils/mapProspects'
 import {
     briefFromMetadata,
@@ -40,8 +40,8 @@ async function getOutreachStatus(websetId: string | null): Promise<APIResponse> 
     }
 
     try {
-        const exa = getExa()
-        const webset = await getWebsetWithItems(exa, websetId)
+        const tavily = getTavily()
+        const webset = await getWebsetWithItems(tavily, websetId)
         const storedBrief = getStoredBrief(websetId)
         if (storedBrief) {
             logger.info('using stored vendor brief', { websetId })
@@ -85,7 +85,7 @@ async function getOutreachStatus(websetId: string | null): Promise<APIResponse> 
             logger.info('adding emailsV1 enrichment', { websetId })
             addingEnrichment.add(lockKey)
             try {
-                await exa.websets.enrichments.create(websetId, {
+                await tavily.websets.enrichments.create(websetId, {
                     description: emailEnrichmentDescription(brief, 1),
                     format: 'text',
                     metadata: { key: 'emailsV1' },
@@ -110,7 +110,7 @@ async function getOutreachStatus(websetId: string | null): Promise<APIResponse> 
             logger.info('adding emailsV2 enrichment', { websetId })
             addingEnrichment.add(lockKey)
             try {
-                await exa.websets.enrichments.create(websetId, {
+                await tavily.websets.enrichments.create(websetId, {
                     description: emailEnrichmentDescription(brief, 2),
                     format: 'text',
                     metadata: { key: 'emailsV2' },
@@ -134,8 +134,8 @@ async function getOutreachStatus(websetId: string | null): Promise<APIResponse> 
         })
     } catch (error) {
         logger.error('getOutreachStatus error', error as Error, {
-            apiKey: apiKeyFingerprint(process.env.EXA_API_KEY),
-            ...exaErrorFields(error),
+            apiKey: apiKeyFingerprint(process.env.TAVILY_API_KEY),
+            ...errorFields(error),
         })
         return internalError()
     }

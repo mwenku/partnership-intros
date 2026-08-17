@@ -9,18 +9,18 @@ jest.mock('../../../../src/logger', () => ({
     },
 }))
 
-const mockGetExa = jest.fn()
+const mockGetTavily = jest.fn()
 const mockGetWebsetWithItems = jest.fn()
 const mockEnrichmentCreate = jest.fn()
-jest.mock('../../../../src/clients/exa', () => ({
-    getExa: (): unknown => mockGetExa(),
+jest.mock('../../../../src/clients/tavily', () => ({
+    getTavily: (): unknown => mockGetTavily(),
     getWebsetWithItems: (...args: unknown[]): unknown => mockGetWebsetWithItems(...args),
 }))
 
 import { getOutreachStatus } from '../../../../src/handlers/getOutreachStatus'
 
-function givenExaClient(): void {
-    mockGetExa.mockReturnValue({
+function givenTavilyClient(): void {
+    mockGetTavily.mockReturnValue({
         websets: {
             enrichments: {
                 create: mockEnrichmentCreate,
@@ -32,7 +32,7 @@ function givenExaClient(): void {
 function givenRunningWebset(): void {
     mockGetWebsetWithItems.mockResolvedValueOnce({
         status: 'running',
-        dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+        dashboardUrl: '',
         metadata: { vendorName: 'Harborline' },
         searches: [{ progress: { found: 0, completion: 10 } }],
         enrichments: [],
@@ -43,7 +43,7 @@ function givenRunningWebset(): void {
 function givenIdleWebsetWithoutEmailEnrichments(): void {
     mockGetWebsetWithItems.mockResolvedValueOnce({
         status: 'idle',
-        dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+        dashboardUrl: '',
         metadata: { vendorName: 'Harborline' },
         searches: [{ progress: { found: 1, completion: 100 } }],
         enrichments: [{ id: 'enr_employer', metadata: { key: 'employer' }, description: '[employer] name' }],
@@ -54,7 +54,7 @@ function givenIdleWebsetWithoutEmailEnrichments(): void {
 function givenIdleWebsetWithEmailV1(): void {
     mockGetWebsetWithItems.mockResolvedValueOnce({
         status: 'idle',
-        dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+        dashboardUrl: '',
         metadata: { vendorName: 'Harborline' },
         searches: [{ progress: { found: 1, completion: 100 } }],
         enrichments: [
@@ -68,7 +68,7 @@ function givenIdleWebsetWithEmailV1(): void {
 function givenIdleWebsetWithBothEmailEnrichments(): void {
     mockGetWebsetWithItems.mockResolvedValueOnce({
         status: 'idle',
-        dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+        dashboardUrl: '',
         metadata: { vendorName: 'Harborline' },
         searches: [{ progress: { found: 1, completion: 100 } }],
         enrichments: [
@@ -82,8 +82,8 @@ function givenIdleWebsetWithBothEmailEnrichments(): void {
 describe('getOutreachStatus handler unit tests', () => {
     beforeEach(() => {
         jest.resetAllMocks()
-        process.env.EXA_API_KEY = 'test-key'
-        givenExaClient()
+        process.env.TAVILY_API_KEY = 'test-key'
+        givenTavilyClient()
     })
 
     describe('error handling', () => {
@@ -103,7 +103,7 @@ describe('getOutreachStatus handler unit tests', () => {
         })
 
         it('should return 500 if reading the Webset fails', async () => {
-            mockGetWebsetWithItems.mockRejectedValueOnce(new Error('Exa unavailable'))
+            mockGetWebsetWithItems.mockRejectedValueOnce(new Error('Tavily unavailable'))
 
             const actual = await getOutreachStatus('webset_123')
 
@@ -165,7 +165,7 @@ describe('getOutreachStatus handler unit tests', () => {
             expect(actual.statusCode).toBe(200)
             expect(body.data).toEqual({
                 websetId: 'webset_123',
-                dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+                dashboardUrl: '',
                 status: 'done',
                 phase: 'done',
                 itemCount: 0,

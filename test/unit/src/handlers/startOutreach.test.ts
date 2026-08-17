@@ -10,9 +10,9 @@ jest.mock('../../../../src/logger', () => ({
 }))
 
 const mockCreate = jest.fn()
-const mockGetExa = jest.fn()
-jest.mock('../../../../src/clients/exa', () => ({
-    getExa: (): unknown => mockGetExa(),
+const mockGetTavily = jest.fn()
+jest.mock('../../../../src/clients/tavily', () => ({
+    getTavily: (): unknown => mockGetTavily(),
 }))
 
 import { startOutreach } from '../../../../src/handlers/startOutreach'
@@ -40,8 +40,8 @@ function givenValidOutreachRequest(): OutreachRequestType {
     }
 }
 
-function givenExaClient(): void {
-    mockGetExa.mockReturnValue({
+function givenTavilyClient(): void {
+    mockGetTavily.mockReturnValue({
         websets: {
             create: mockCreate,
         },
@@ -51,15 +51,15 @@ function givenExaClient(): void {
 function givenWebsetCreated(): void {
     mockCreate.mockResolvedValueOnce({
         id: 'webset_123',
-        dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+        dashboardUrl: '',
     })
 }
 
 describe('startOutreach handler unit tests', () => {
     beforeEach(() => {
         jest.resetAllMocks()
-        process.env.EXA_API_KEY = 'test-key'
-        givenExaClient()
+        process.env.TAVILY_API_KEY = 'test-key'
+        givenTavilyClient()
     })
 
     describe('error handling', () => {
@@ -90,9 +90,9 @@ describe('startOutreach handler unit tests', () => {
             expect(actual.statusCode).toBe(400)
         })
 
-        it('should return 500 if Exa client cannot be created', async () => {
-            mockGetExa.mockImplementationOnce(() => {
-                throw new Error('EXA_API_KEY is missing')
+        it('should return 500 if Tavily client cannot be created', async () => {
+            mockGetTavily.mockImplementationOnce(() => {
+                throw new Error('TAVILY_API_KEY is missing')
             })
 
             const actual = await startOutreach(givenValidOutreachRequest())
@@ -103,28 +103,13 @@ describe('startOutreach handler unit tests', () => {
         })
 
         it('should return 500 if Webset create fails', async () => {
-            mockCreate.mockRejectedValueOnce(new Error('Exa unavailable'))
+            mockCreate.mockRejectedValueOnce(new Error('Tavily unavailable'))
 
             const actual = await startOutreach(givenValidOutreachRequest())
 
             expect(JSON.parse(actual.body).message).toEqual('Internal error')
             expect(actual.statusCode).toBe(500)
             expect(mockCreate).toHaveBeenCalledTimes(1)
-        })
-
-        it('should return 401 if Exa rejects the team plan', async () => {
-            mockCreate.mockRejectedValueOnce(
-                new Error(
-                    "Unauthorized. Your team (Lucas Nkuta's Personal) does not have access to the API. Upgrade to a Pro plan to get access.",
-                ),
-            )
-
-            const actual = await startOutreach(givenValidOutreachRequest())
-
-            expect(JSON.parse(actual.body).message).toEqual(
-                "Unauthorized. Your team (Lucas Nkuta's Personal) does not have access to the API. Upgrade to a Pro plan to get access.",
-            )
-            expect(actual.statusCode).toBe(401)
         })
     })
 
@@ -139,7 +124,7 @@ describe('startOutreach handler unit tests', () => {
             expect(body.message).toEqual('Ok')
             expect(body.data).toEqual({
                 websetId: 'webset_123',
-                dashboardUrl: 'https://dashboard.exa.ai/websets/webset_123',
+                dashboardUrl: '',
             })
             expect(mockCreate).toHaveBeenCalledTimes(1)
             expect(mockCreate.mock.calls[0][0].search.entity).toEqual({ type: 'person' })

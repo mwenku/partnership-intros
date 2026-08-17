@@ -1,6 +1,7 @@
 import { CriterionEvaluationType, ProspectType, SourceType } from '../zod-schemas'
+import { judgeEmailsAgainstContext } from './emailJudgement'
 import { parseFourEmails } from './parseFourEmails'
-import { collectSources, enrichmentKey, uniqueSources, WebsetSnapshot } from './webset'
+import { briefFromMetadata, collectSources, enrichmentKey, uniqueSources, WebsetSnapshot } from './webset'
 
 type EnrichmentResult = {
     enrichmentId?: string
@@ -19,6 +20,7 @@ type WebsetItem = {
             location?: string
             position?: string
             pictureUrl?: string
+            company?: { name?: string }
         }
     }
     evaluations?: Array<{
@@ -115,6 +117,7 @@ function splitSelectedSignal(text: string): { selectedSignal: string; selectedSi
 function mapProspects(webset: MappableWebset): ProspectType[] {
     const idToKey = enrichmentMap(webset)
     const items = webset.items?.data || []
+    const brief = briefFromMetadata(webset.metadata as Record<string, string> | undefined)
 
     return items.map((raw) => {
         const item = raw as WebsetItem
@@ -127,6 +130,9 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
         const selected = resultForKey(item, idToKey, 'selectedSignal')
         const emailsV1 = resultForKey(item, idToKey, 'emailsV1')
         const emailsV2 = resultForKey(item, idToKey, 'emailsV2')
+        const parsedEmailsV1 = parseFourEmails(emailsV1.text)
+        const parsedEmailsV2 = parseFourEmails(emailsV2.text)
+        const finalEmails = parsedEmailsV2.some((emailText) => emailText.trim().length > 0) ? parsedEmailsV2 : parsedEmailsV1
         const selectedParts = splitSelectedSignal(selected.text || selected.reasoning)
 
         const evaluations: CriterionEvaluationType[] = (item.evaluations || []).map((evaluation) => ({
@@ -149,6 +155,23 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
             ...emailsV2.sources,
         ])
 
+        const companyName = employer.text || item.properties?.person?.company?.name || ''
+        const emailJudgement = judgeEmailsAgainstContext(
+            finalEmails,
+            brief,
+            {
+                name: item.properties?.person?.name || 'Unknown',
+                companyName,
+                position: item.properties?.person?.position || '',
+            },
+            {
+                companyFit: companyFit.text || companyFit.reasoning,
+                personFit: personFit.text || personFit.reasoning,
+                selectedSignal: selectedParts.selectedSignal,
+            },
+            sources,
+        )
+
         return {
             id: item.id,
             name: item.properties?.person?.name || 'Unknown',
@@ -156,7 +179,7 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
             location: item.properties?.person?.location || '',
             profileUrl: item.properties?.url || '',
             pictureUrl: item.properties?.person?.pictureUrl || '',
-            companyName: employer.text,
+            companyName,
             companyWebsite: website.text,
             email: email.text,
             companyFit: companyFit.text || companyFit.reasoning,
@@ -166,8 +189,9 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
             selectedSignal: selectedParts.selectedSignal,
             selectedSignalWhy: selectedParts.selectedSignalWhy,
             sources,
-            emailsV1: parseFourEmails(emailsV1.text),
-            emailsV2: parseFourEmails(emailsV2.text),
+            emailsV1: parsedEmailsV1,
+            emailsV2: parsedEmailsV2,
+            emailJudgement,
         }
     })
 }

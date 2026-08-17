@@ -105,6 +105,15 @@ describe('mapProspects unit tests', () => {
                     ],
                     emailsV1: ['', '', '', ''],
                     emailsV2: ['', '', '', ''],
+                    emailJudgement: expect.objectContaining({
+                        overallVerdict: 'revise',
+                        byEmail: expect.arrayContaining([
+                            expect.objectContaining({ emailNumber: 1, verdict: 'revise' }),
+                            expect.objectContaining({ emailNumber: 2, verdict: 'revise' }),
+                            expect.objectContaining({ emailNumber: 3, verdict: 'revise' }),
+                            expect.objectContaining({ emailNumber: 4, verdict: 'revise' }),
+                        ]),
+                    }),
                 },
             ])
         })

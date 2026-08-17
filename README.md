@@ -1,6 +1,6 @@
 # Souk partner-outreach prototype
 
-Single-page prototype: a partner search and vendor brief go into **Exa Websets**, which finds 3–5 people, verifies them, researches signals, and writes a four-email sequence. Souk would send these on the vendor's behalf. **The prototype does not send any real emails.** It stops at reviewed sequences ready for potential use.
+Single-page prototype: a partner search and vendor brief go into a **Tavily-powered Webset flow**, which finds 3–5 people, verifies them, researches signals, and writes a four-email sequence. Souk would send these on the vendor's behalf. **The prototype does not send any real emails.** It stops at reviewed sequences ready for potential use.
 
 ## Setup
 
@@ -8,10 +8,14 @@ Single-page prototype: a partner search and vendor brief go into **Exa Websets**
 cp .env.example .env.local
 ```
 
-Put your Exa key in `.env.local`:
+Put your keys in `.env.local`:
 
 ```
+TAVILY_API_KEY=
 EXA_API_KEY=
+OPENAI_API_KEY=
+OPENAI_EMAIL_MODEL=gpt-4.1
+WEBSET_PROVIDER=tavily
 ```
 
 ```bash
@@ -23,18 +27,19 @@ Open [http://localhost:3000](http://localhost:3000). A Webset run usually takes 
 
 ## How it works
 
-1. Your search and vendor brief are sent as the Webset query. The vendor website URL is included so Exa can crawl it.
+1. Your search and vendor brief are sent as the Webset query. Tavily advanced search retrieves relevant sources.
 2. Discovery uses Websets with `entity: { type: "person" }`, count 5, and `maxPeoplePerCompany: 1`.
 3. Three criteria check organisation, role, and partnership context.
 4. Enrichments research company fit, person fit, 2–3 signals, a selected signal, and a work email if public.
-5. After that completes, a first four-email enrichment runs, then a stricter rewrite enrichment. Both are Websets, not a separate LLM.
+5. After that completes, a first four-email enrichment runs, then a stricter rewrite enrichment. Email sequence generation uses OpenAI with Webset research context.
 
-This does **not** use Exa People Search (`category: "people"`) for discovery.
+This does **not** use Tavily extract/crawl for discovery; it starts from Tavily search results.
 
 ## Models and providers
 
-- **Exa Websets** for people discovery, criteria, research, and both email drafts.
-- No OpenAI, Anthropic, or other writing model.
+- **Tavily search** for people discovery context and source grounding.
+- **Provider switch** via `WEBSET_PROVIDER=tavily|exa` without handler changes.
+- **OpenAI model** for four-email sequence generation. Tavily and Exa do not write copy.
 
 ## Code layout
 
@@ -43,7 +48,7 @@ Matches the `cc-be-wallet` style: Zod schemas, named handler exports, early retu
 ```
 src/handlers/startOutreach.ts
 src/handlers/getOutreachStatus.ts
-src/clients/exa.ts
+src/clients/tavily.ts
 src/zod-schemas.ts
 src/logger.ts
 src/utils/
