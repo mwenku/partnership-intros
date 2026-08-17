@@ -144,8 +144,6 @@ The sequence should:
 - End with a respectful, low-friction close.
 - Avoid generic follow-ups such as "just checking in" or "bumping this."
 
-People act in their own interest. Every email must answer: what do they gain, and why should they partner.
-
 EMAIL 1: Open with the commercial gain for them if they partner with ${brief.vendorName}. Then why this company and this person are the right fit. One evidence-backed hook. Do not mention Souk. End with a low-friction question.
 
 EMAIL 2: Add a new sourced fact with a URL. Tie that fact to a gain for them that was not the same sentence as email 1. Do not repeat email 1.
