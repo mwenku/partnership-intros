@@ -21,6 +21,8 @@ const defaultBrief: VendorBriefType = {
 const defaultSearch =
     'Find partnership leaders at UK consultancies, accountancies, or HR firms that help companies hire and pay internationally.'
 
+const openAiEmailModels = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini']
+
 const phaseCopy: Record<OutreachStatusType['phase'], string> = {
     discovering: 'Searching Websets for people…',
     researching: 'Verifying criteria and researching each profile…',
@@ -314,11 +316,29 @@ export default function Page(): ReactElement {
     async function startRun(reuseResearch = false): Promise<void> {
         const researchProspects = status?.prospects || []
         const trimmedEmailModel = emailModel.trim()
+        const previousStatus = status
         setError('')
-        setStatus(null)
-        setSequenceTabs({})
         setReusingResearch(reuseResearch)
         setRunning(true)
+
+        if (reuseResearch && previousStatus) {
+            setSequenceTabs(
+                Object.fromEntries(previousStatus.prospects.map((prospect) => [prospect.id, 'first' as SequenceTab])),
+            )
+            setStatus({
+                ...previousStatus,
+                status: 'running',
+                phase: 'writing-v1',
+                prospects: previousStatus.prospects.map((prospect) => ({
+                    ...prospect,
+                    emailsV1: ['', '', '', ''],
+                    emailsV2: ['', '', '', ''],
+                })),
+            })
+        } else {
+            setStatus(null)
+            setSequenceTabs({})
+        }
 
         const response = await fetch('/api/outreach', {
             method: 'POST',
@@ -336,6 +356,9 @@ export default function Page(): ReactElement {
         if (!response.ok) {
             setRunning(false)
             setError(payload.message || 'Failed to start')
+            if (reuseResearch && previousStatus) {
+                setStatus(previousStatus)
+            }
             return
         }
 
@@ -573,11 +596,14 @@ export default function Page(): ReactElement {
                         <summary>Rewrite emails</summary>
                         <label>
                             OpenAI model
-                            <input
-                                value={emailModel}
-                                placeholder="gpt-4.1"
-                                onChange={(event) => setEmailModel(event.target.value)}
-                            />
+                            <select value={emailModel} onChange={(event) => setEmailModel(event.target.value)}>
+                                <option value="">Default</option>
+                                {openAiEmailModels.map((model) => (
+                                    <option key={model} value={model}>
+                                        {model}
+                                    </option>
+                                ))}
+                            </select>
                         </label>
                         <button
                             type="button"

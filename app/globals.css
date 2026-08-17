@@ -25,6 +25,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -96,6 +97,7 @@ label {
 }
 
 label > input,
+label > select,
 label > textarea,
 .named-input input {
   width: 100%;
