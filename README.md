@@ -5,25 +5,17 @@ Single-page prototype: a partner search and vendor brief go into a **Tavily-powe
 ## Setup
 
 ```bash
-cp .env.example .env.local
+pnpm install
+cp .env.example .env
 ```
 
-Put your keys in `.env.local`:
-
-```
-TAVILY_API_KEY=
-EXA_API_KEY=
-OPENAI_API_KEY=
-OPENAI_EMAIL_MODEL=gpt-4.1
-WEBSET_PROVIDER=tavily
-```
+Fill in the keys in `.env` (see `.env.example`), then:
 
 ```bash
-pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). A Webset run usually takes several minutes. Leave the tab open.
+Open [http://localhost:3000](http://localhost:3000). A run usually takes several minutes. Leave the tab open.
 
 ## How it works
 

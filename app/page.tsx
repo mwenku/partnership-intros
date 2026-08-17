@@ -3,7 +3,7 @@
 import { FormEvent, ReactElement, SyntheticEvent, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { OutreachStatusType, ProspectType, VendorBriefType } from '../src/zod-schemas'
+import { EmailJudgementType, OutreachStatusType, ProspectType, VendorBriefType } from '../src/zod-schemas'
 import { TagListInput } from './TagListInput'
 
 const defaultBrief: VendorBriefType = {
@@ -29,12 +29,246 @@ const phaseCopy: Record<OutreachStatusType['phase'], string> = {
     done: 'Reviewed sequences ready for potential use. Nothing has been sent.',
 }
 
-function emailsForDisplay(prospect: ProspectType): string[] {
-    if (prospect.emailsV2.some(Boolean)) {
-        return prospect.emailsV2
+type SequenceTab = 'first' | 'final' | 'improved'
+
+function hasEmailContent(emails: string[]): boolean {
+    return emails.some((email) => Boolean(email.trim()))
+}
+
+function defaultSequenceTab(prospect: ProspectType, phase: OutreachStatusType['phase'] | undefined): SequenceTab {
+    if (hasEmailContent(prospect.emailsV2) || phase === 'writing-v2') {
+        return 'final'
     }
 
-    return prospect.emailsV1
+    return 'first'
+}
+
+function problemSourceLabel(source: ProspectType['emailImprovement']['problemSource']): string {
+    if (source === 'signal-selection') {
+        return 'Signal selection'
+    }
+
+    if (source === 'discovery') {
+        return 'Discovery'
+    }
+
+    if (source === 'enrichment') {
+        return 'Enrichment'
+    }
+
+    return 'Writing'
+}
+
+function judgementLine(judgement: EmailJudgementType, index: number): string {
+    const byEmail = judgement.byEmail[index]
+    if (!byEmail) {
+        return ''
+    }
+
+    if (byEmail.verdict === 'ready') {
+        return byEmail.summary
+    }
+
+    return byEmail.checks
+        .filter((item) => !item.passed)
+        .map((item) => `${item.label}: ${item.evidence}`)
+        .join(' · ')
+}
+
+function ContextJudgement({ judgement }: { judgement: EmailJudgementType }): ReactElement {
+    return (
+        <div className="judgement">
+            <p className={`judgement-verdict ${judgement.overallVerdict}`}>
+                {judgement.overallVerdict === 'ready' ? 'Grounded in context' : 'Not fully grounded'}
+            </p>
+            <p className="small">{judgement.overallSummary}</p>
+            {judgement.gaps.map((gap) => (
+                <p className="small judgement-gap" key={gap}>
+                    {gap}
+                </p>
+            ))}
+        </div>
+    )
+}
+
+function EmailDrafts({
+    emails,
+    judgement,
+    prospectId,
+    phase,
+    running,
+}: {
+    emails: string[]
+    judgement: EmailJudgementType
+    prospectId: string
+    phase: OutreachStatusType['phase'] | undefined
+    running: boolean
+}): ReactElement {
+    return (
+        <>
+            {running && !emails.some(Boolean) ? (
+                <p className="sequence-status">
+                    <span className="status-dot" aria-hidden="true" />
+                    {sequenceWaitingCopy(phase)}
+                </p>
+            ) : null}
+            <ContextJudgement judgement={judgement} />
+            {emails.map((email, index) => {
+                if (email) {
+                    return (
+                        <div className="email" key={`${prospectId}-${index}`}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {emailDraftForPreview(email, index)}
+                            </ReactMarkdown>
+                            <p className="small email-judgement">{judgementLine(judgement, index)}</p>
+                        </div>
+                    )
+                }
+
+                if (running) {
+                    return (
+                        <div className="email loading" key={`${prospectId}-${index}`}>
+                            <h3>Email {index + 1}</h3>
+                            <p className="email-loading-copy">
+                                <span className="status-dot" aria-hidden="true" />
+                                {emailWaitingCopy(phase)}
+                            </p>
+                            <div className="email-skeleton" aria-hidden="true">
+                                <span />
+                                <span />
+                                <span />
+                                <span />
+                            </div>
+                        </div>
+                    )
+                }
+
+                return (
+                    <div className="email" key={`${prospectId}-${index}`}>
+                        <h3>Email {index + 1}</h3>
+                        <p>Draft not returned.</p>
+                    </div>
+                )
+            })}
+        </>
+    )
+}
+
+function SequenceSnapshots({
+    prospect,
+    phase,
+    running,
+    tab,
+    onTabChange,
+}: {
+    prospect: ProspectType
+    phase: OutreachStatusType['phase'] | undefined
+    running: boolean
+    tab: SequenceTab
+    onTabChange: (next: SequenceTab) => void
+}): ReactElement {
+    const showFinalTab = hasEmailContent(prospect.emailsV2) || phase === 'writing-v2' || phase === 'done'
+    const showImprovedTab = hasEmailContent(prospect.emailsV1) && hasEmailContent(prospect.emailsV2)
+    const firstJudgement = prospect.emailJudgementV1
+    const finalJudgement = prospect.emailJudgement
+    const improvement = prospect.emailImprovement
+
+    return (
+        <div className="section">
+            <h3>Sequence</h3>
+            <div className="sequence-tabs" role="tablist" aria-label="Email snapshots">
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'first'}
+                    className={tab === 'first' ? 'active' : ''}
+                    onClick={() => onTabChange('first')}
+                >
+                    First draft
+                </button>
+                {showFinalTab ? (
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === 'final'}
+                        className={tab === 'final' ? 'active' : ''}
+                        onClick={() => onTabChange('final')}
+                    >
+                        Final
+                    </button>
+                ) : null}
+                {showImprovedTab ? (
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === 'improved'}
+                        className={tab === 'improved' ? 'active' : ''}
+                        onClick={() => onTabChange('improved')}
+                    >
+                        How it improved
+                    </button>
+                ) : null}
+            </div>
+
+            {tab === 'first' ? (
+                <div role="tabpanel">
+                    <EmailDrafts
+                        emails={prospect.emailsV1}
+                        judgement={firstJudgement}
+                        prospectId={`${prospect.id}-first`}
+                        phase={phase === 'writing-v2' ? 'writing-v1' : phase}
+                        running={running && !hasEmailContent(prospect.emailsV1)}
+                    />
+                </div>
+            ) : null}
+
+            {tab === 'final' ? (
+                <div role="tabpanel">
+                    <EmailDrafts
+                        emails={
+                            hasEmailContent(prospect.emailsV2) || phase === 'writing-v2'
+                                ? prospect.emailsV2
+                                : prospect.emailsV1
+                        }
+                        judgement={finalJudgement}
+                        prospectId={`${prospect.id}-final`}
+                        phase={phase}
+                        running={running && !hasEmailContent(prospect.emailsV2)}
+                    />
+                </div>
+            ) : null}
+
+            {tab === 'improved' ? (
+                <div role="tabpanel" className="improvement">
+                    <p className="judgement-verdict">
+                        Problem source: {problemSourceLabel(improvement.problemSource)}
+                    </p>
+                    <h3>What was weak in the first version</h3>
+                    <p>{improvement.weakInFirst}</p>
+                    <h3>Where the problem came from</h3>
+                    <p>{improvement.problemSourceWhy}</p>
+                    <h3>What changed</h3>
+                    <p>{improvement.whatChanged}</p>
+                    {improvement.fixedGaps.length > 0 ? (
+                        <ul>
+                            {improvement.fixedGaps.map((gap) => (
+                                <li key={gap}>{gap}</li>
+                            ))}
+                        </ul>
+                    ) : null}
+                    <h3>How the emails improved</h3>
+                    <p>{improvement.howImproved}</p>
+                    {improvement.remainingGaps.length > 0 ? (
+                        <ul>
+                            {improvement.remainingGaps.map((gap) => (
+                                <li key={gap}>{gap}</li>
+                            ))}
+                        </ul>
+                    ) : null}
+                </div>
+            ) : null}
+        </div>
+    )
 }
 
 function emailDraftForPreview(email: string, index: number): string {
@@ -114,6 +348,7 @@ export default function Page(): ReactElement {
     const [status, setStatus] = useState<OutreachStatusType | null>(null)
     const [error, setError] = useState('')
     const [running, setRunning] = useState(false)
+    const [sequenceTabs, setSequenceTabs] = useState<Record<string, SequenceTab>>({})
     const vendorLogoUrl = logoUrlFromWebsite(brief.website)
 
     function updateBrief(field: keyof VendorBriefType, value: string): void {
@@ -123,6 +358,7 @@ export default function Page(): ReactElement {
     async function startRun(): Promise<void> {
         setError('')
         setStatus(null)
+        setSequenceTabs({})
         setRunning(true)
 
         const response = await fetch('/api/outreach', {
@@ -353,8 +589,8 @@ export default function Page(): ReactElement {
                     )}
 
                     {(status?.prospects || []).map((prospect) => {
-                        const emails = emailsForDisplay(prospect)
                         const companyLogoUrl = logoUrlFromWebsite(prospect.companyWebsite)
+                        const sequenceTab = sequenceTabs[prospect.id] || defaultSequenceTab(prospect, status?.phase)
 
                         return (
                             <article className="prospect" key={prospect.id}>
@@ -465,51 +701,15 @@ export default function Page(): ReactElement {
                                     </div>
                                 </details>
 
-                                <div className="section">
-                                    <h3>Sequence</h3>
-                                    {running && !emails.some(Boolean) ? (
-                                        <p className="sequence-status">
-                                            <span className="status-dot" aria-hidden="true" />
-                                            {sequenceWaitingCopy(status?.phase)}
-                                        </p>
-                                    ) : null}
-                                    {emails.map((email, index) => {
-                                        if (email) {
-                                            return (
-                                                <div className="email" key={`${prospect.id}-${index}`}>
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                        {emailDraftForPreview(email, index)}
-                                                    </ReactMarkdown>
-                                                </div>
-                                            )
-                                        }
-
-                                        if (running) {
-                                            return (
-                                                <div className="email loading" key={`${prospect.id}-${index}`}>
-                                                    <h3>Email {index + 1}</h3>
-                                                    <p className="email-loading-copy">
-                                                        <span className="status-dot" aria-hidden="true" />
-                                                        {emailWaitingCopy(status?.phase)}
-                                                    </p>
-                                                    <div className="email-skeleton" aria-hidden="true">
-                                                        <span />
-                                                        <span />
-                                                        <span />
-                                                        <span />
-                                                    </div>
-                                                </div>
-                                            )
-                                        }
-
-                                        return (
-                                            <div className="email" key={`${prospect.id}-${index}`}>
-                                                <h3>Email {index + 1}</h3>
-                                                <p>Draft not returned.</p>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                <SequenceSnapshots
+                                    prospect={prospect}
+                                    phase={status?.phase}
+                                    running={running}
+                                    tab={sequenceTab}
+                                    onTabChange={(next) => {
+                                        setSequenceTabs((current) => ({ ...current, [prospect.id]: next }))
+                                    }}
+                                />
                             </article>
                         )
                     })}

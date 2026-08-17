@@ -397,6 +397,73 @@ button.secondary {
   padding-left: 12px;
 }
 
+.sequence-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.sequence-tabs button {
+  font-family: "Gill Sans", "Trebuchet MS", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.sequence-tabs button.active,
+.sequence-tabs button[aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.judgement {
+  margin: 0 0 14px;
+}
+
+.judgement-verdict {
+  font-family: "Gill Sans", "Trebuchet MS", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+  color: var(--accent);
+}
+
+.judgement-verdict.revise {
+  color: var(--warn);
+}
+
+.judgement-gap,
+.email-judgement {
+  margin: 0 0 6px;
+}
+
+.improvement h3 {
+  font-family: "Gill Sans", "Trebuchet MS", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 16px 0 8px;
+}
+
+.improvement p {
+  margin: 0 0 10px;
+}
+
+.improvement ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
 .email {
   background: #fffdf8;
   border: 1px solid var(--line);

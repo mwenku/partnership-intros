@@ -360,8 +360,14 @@ describe('tavily outreach integration tests', () => {
                     sources: [],
                     emailsV1: ['', '', '', ''],
                     emailsV2: ['', '', '', ''],
+                    emailJudgementV1: expect.objectContaining({
+                        overallVerdict: 'revise',
+                    }),
                     emailJudgement: expect.objectContaining({
                         overallVerdict: 'revise',
+                    }),
+                    emailImprovement: expect.objectContaining({
+                        problemSource: 'enrichment',
                     }),
                 },
             ])

@@ -105,6 +105,9 @@ describe('mapProspects unit tests', () => {
                     ],
                     emailsV1: ['', '', '', ''],
                     emailsV2: ['', '', '', ''],
+                    emailJudgementV1: expect.objectContaining({
+                        overallVerdict: 'revise',
+                    }),
                     emailJudgement: expect.objectContaining({
                         overallVerdict: 'revise',
                         byEmail: expect.arrayContaining([
@@ -114,8 +117,97 @@ describe('mapProspects unit tests', () => {
                             expect.objectContaining({ emailNumber: 4, verdict: 'revise' }),
                         ]),
                     }),
+                    emailImprovement: expect.objectContaining({
+                        problemSource: 'enrichment',
+                    }),
                 },
             ])
+        })
+
+        it('should preserve first and final email snapshots for the same person', () => {
+            const item = givenPersonItem()
+            const actual = mapProspects({
+                enrichments: [
+                    { id: 'enr_employer', metadata: { key: 'employer' } },
+                    { id: 'enr_email', metadata: { key: 'email' } },
+                    { id: 'enr_v1', metadata: { key: 'emailsV1' } },
+                    { id: 'enr_v2', metadata: { key: 'emailsV2' } },
+                ],
+                items: {
+                    data: [
+                        {
+                            ...item,
+                            enrichments: [
+                                ...(item.enrichments as object[]),
+                                {
+                                    enrichmentId: 'enr_v1',
+                                    result: [
+                                        'EMAIL 1\nFirst snapshot for Jane\n\nEMAIL 2\nSecond first-draft note\n\nEMAIL 3\nThird first-draft note\n\nEMAIL 4\nFourth first-draft note',
+                                    ],
+                                },
+                                {
+                                    enrichmentId: 'enr_v2',
+                                    result: [
+                                        'EMAIL 1\nFinal snapshot for Jane\n\nEMAIL 2\nSecond final-draft note\n\nEMAIL 3\nThird final-draft note\n\nEMAIL 4\nFourth final-draft note',
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            })
+
+            expect(actual[0].emailsV1).toEqual([
+                'First snapshot for Jane',
+                'Second first-draft note',
+                'Third first-draft note',
+                'Fourth first-draft note',
+            ])
+            expect(actual[0].emailsV2).toEqual([
+                'Final snapshot for Jane',
+                'Second final-draft note',
+                'Third final-draft note',
+                'Fourth final-draft note',
+            ])
+            expect(actual[0].emailJudgementV1.gaps).not.toEqual([])
+            expect(actual[0].emailJudgement.gaps).not.toEqual([])
+        })
+
+        it('should keep the first snapshot as the final judgement if the rewrite is missing', () => {
+            const item = givenPersonItem()
+            const actual = mapProspects({
+                enrichments: [
+                    { id: 'enr_employer', metadata: { key: 'employer' } },
+                    { id: 'enr_email', metadata: { key: 'email' } },
+                    { id: 'enr_v1', metadata: { key: 'emailsV1' } },
+                ],
+                items: {
+                    data: [
+                        {
+                            ...item,
+                            enrichments: [
+                                ...(item.enrichments as object[]),
+                                {
+                                    enrichmentId: 'enr_v1',
+                                    result: [
+                                        'EMAIL 1\nFirst snapshot for Jane\n\nEMAIL 2\nSecond first-draft note\n\nEMAIL 3\nThird first-draft note\n\nEMAIL 4\nFourth first-draft note',
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            })
+
+            expect(actual[0].emailsV1).toEqual([
+                'First snapshot for Jane',
+                'Second first-draft note',
+                'Third first-draft note',
+                'Fourth first-draft note',
+            ])
+            expect(actual[0].emailsV2).toEqual(['', '', '', ''])
+            expect(actual[0].emailJudgement).toEqual(actual[0].emailJudgementV1)
+            expect(actual[0].emailImprovement.fixedGaps).toEqual([])
         })
     })
 })

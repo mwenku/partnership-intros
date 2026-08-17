@@ -56,6 +56,16 @@ export const EmailJudgement = z.object({
     byEmail: z.array(EmailJudgementByEmail),
 })
 
+export const EmailImprovement = z.object({
+    problemSource: z.enum(['discovery', 'enrichment', 'signal-selection', 'writing']),
+    problemSourceWhy: z.string(),
+    weakInFirst: z.string(),
+    whatChanged: z.string(),
+    howImproved: z.string(),
+    fixedGaps: z.array(z.string()),
+    remainingGaps: z.array(z.string()),
+})
+
 export const Prospect = z.object({
     id: z.string(),
     name: z.string(),
@@ -75,7 +85,9 @@ export const Prospect = z.object({
     sources: z.array(Source),
     emailsV1: z.array(z.string()),
     emailsV2: z.array(z.string()),
+    emailJudgementV1: EmailJudgement,
     emailJudgement: EmailJudgement,
+    emailImprovement: EmailImprovement,
 })
 
 export const OutreachPhase = z.enum(['discovering', 'researching', 'writing-v1', 'writing-v2', 'done'])
@@ -103,6 +115,7 @@ export type SignalType = z.infer<typeof Signal>
 export type EmailJudgementCheckType = z.infer<typeof EmailJudgementCheck>
 export type EmailJudgementByEmailType = z.infer<typeof EmailJudgementByEmail>
 export type EmailJudgementType = z.infer<typeof EmailJudgement>
+export type EmailImprovementType = z.infer<typeof EmailImprovement>
 export type ProspectType = z.infer<typeof Prospect>
 export type OutreachPhaseType = z.infer<typeof OutreachPhase>
 export type OutreachStatusType = z.infer<typeof OutreachStatus>

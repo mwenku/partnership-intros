@@ -1,4 +1,4 @@
-import { applyEmailJudgementPatches, judgeEmailsAgainstContext } from '../../../../src/utils/emailJudgement'
+import { applyEmailJudgementPatches, explainEmailImprovement, judgeEmailsAgainstContext } from '../../../../src/utils/emailJudgement'
 import { SourceType, VendorBriefType } from '../../../../src/zod-schemas'
 
 function givenVendorBrief(overrides: Partial<VendorBriefType> = {}): VendorBriefType {
@@ -706,6 +706,132 @@ Harborline`)
                     givenSources(),
                 ),
             ).toEqual(emails)
+        })
+    })
+})
+
+describe('explainEmailImprovement unit tests', () => {
+    describe('error handling', () => {
+        it('should classify missing people as a discovery problem', () => {
+            const empty = judgeEmailsAgainstContext(
+                ['', '', '', ''],
+                givenVendorBrief(),
+                { name: '', companyName: '', position: '' },
+                { companyFit: '', personFit: '', selectedSignal: '' },
+                [],
+            )
+            const recipient = { name: '', companyName: '', position: '' }
+
+            expect(explainEmailImprovement(empty, empty, recipient, givenOpportunity(), givenSources())).toEqual({
+                problemSource: 'discovery',
+                problemSourceWhy: 'Discovery did not return a usable recipient. Name: missing. Company: missing.',
+                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
+                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                fixedGaps: [],
+                remainingGaps: empty.gaps,
+            })
+        })
+
+        it('should classify missing fit research as an enrichment problem', () => {
+            const opportunity = { companyFit: '', personFit: '', selectedSignal: '' }
+            const empty = judgeEmailsAgainstContext(['', '', '', ''], givenVendorBrief(), givenRecipient(), opportunity, [])
+
+            expect(explainEmailImprovement(empty, empty, givenRecipient(), opportunity, [])).toEqual({
+                problemSource: 'enrichment',
+                problemSourceWhy:
+                    'Enrichment did not return enough research to ground the emails. Company fit: missing. Person fit: missing. Sources: 0.',
+                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
+                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                fixedGaps: [],
+                remainingGaps: empty.gaps,
+            })
+        })
+
+        it('should classify a missing selected signal as a signal-selection problem', () => {
+            const opportunity = {
+                companyFit: 'Example Consulting implements private AI for banks',
+                personFit: '',
+                selectedSignal: '',
+            }
+            const empty = judgeEmailsAgainstContext(
+                ['', '', '', ''],
+                givenVendorBrief(),
+                givenRecipient(),
+                opportunity,
+                givenSources(),
+            )
+
+            expect(explainEmailImprovement(empty, empty, givenRecipient(), opportunity, givenSources())).toEqual({
+                problemSource: 'signal-selection',
+                problemSourceWhy: 'Signal selection did not produce a usable partnership signal. Selected signal: missing.',
+                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
+                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                fixedGaps: [],
+                remainingGaps: empty.gaps,
+            })
+        })
+    })
+
+    describe('success', () => {
+        it('should treat a Souk mention as a writing problem that the rewrite fixed', () => {
+            const firstEmails = givenReadyEmails()
+            firstEmails[0] = firstEmails[0].replace(
+                "I'd like to introduce a partnership with Harborline.",
+                "I'm writing from Souk to introduce a partnership with Harborline.",
+            )
+            const first = judgeEmailsAgainstContext(
+                firstEmails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+            const final = judgeEmailsAgainstContext(
+                givenReadyEmails(),
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(first.gaps).toEqual(['Email 1: Does not mention Souk'])
+            expect(explainEmailImprovement(first, final, givenRecipient(), givenOpportunity(), givenSources())).toEqual({
+                problemSource: 'writing',
+                problemSourceWhy:
+                    'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
+                weakInFirst: 'The first snapshot failed 1 context check: Email 1: Does not mention Souk.',
+                whatChanged: 'The rewrite fixed: Email 1: Does not mention Souk.',
+                howImproved:
+                    'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research. Newly passing checks: Email 1: Does not mention Souk.',
+                fixedGaps: ['Email 1: Does not mention Souk'],
+                remainingGaps: [],
+            })
+        })
+
+        it('should keep the same grounded checks if first and final already pass', () => {
+            const ready = judgeEmailsAgainstContext(
+                givenReadyEmails(),
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(explainEmailImprovement(ready, ready, givenRecipient(), givenOpportunity(), givenSources())).toEqual({
+                problemSource: 'writing',
+                problemSourceWhy:
+                    'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
+                weakInFirst:
+                    'The first snapshot already used the actual vendor, recipient, opportunity, and sourced research.',
+                whatChanged: 'The rewrite kept the same grounded checks. No failed context checks were added or removed.',
+                howImproved:
+                    'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.',
+                fixedGaps: [],
+                remainingGaps: [],
+            })
         })
     })
 })

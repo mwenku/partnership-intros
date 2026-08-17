@@ -1,5 +1,5 @@
 import { CriterionEvaluationType, ProspectType, SourceType } from '../zod-schemas'
-import { judgeEmailsAgainstContext } from './emailJudgement'
+import { explainEmailImprovement, judgeEmailsAgainstContext } from './emailJudgement'
 import { parseFourEmails } from './parseFourEmails'
 import { briefFromMetadata, collectSources, enrichmentKey, uniqueSources, WebsetSnapshot } from './webset'
 
@@ -156,19 +156,23 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
         ])
 
         const companyName = employer.text || item.properties?.person?.company?.name || ''
-        const emailJudgement = judgeEmailsAgainstContext(
-            finalEmails,
-            brief,
-            {
-                name: item.properties?.person?.name || 'Unknown',
-                companyName,
-                position: item.properties?.person?.position || '',
-            },
-            {
-                companyFit: companyFit.text || companyFit.reasoning,
-                personFit: personFit.text || personFit.reasoning,
-                selectedSignal: selectedParts.selectedSignal,
-            },
+        const recipient = {
+            name: item.properties?.person?.name || 'Unknown',
+            companyName,
+            position: item.properties?.person?.position || '',
+        }
+        const opportunity = {
+            companyFit: companyFit.text || companyFit.reasoning,
+            personFit: personFit.text || personFit.reasoning,
+            selectedSignal: selectedParts.selectedSignal,
+        }
+        const emailJudgementV1 = judgeEmailsAgainstContext(parsedEmailsV1, brief, recipient, opportunity, sources)
+        const emailJudgement = judgeEmailsAgainstContext(finalEmails, brief, recipient, opportunity, sources)
+        const emailImprovement = explainEmailImprovement(
+            emailJudgementV1,
+            emailJudgement,
+            recipient,
+            opportunity,
             sources,
         )
 
@@ -191,7 +195,9 @@ function mapProspects(webset: MappableWebset): ProspectType[] {
             sources,
             emailsV1: parsedEmailsV1,
             emailsV2: parsedEmailsV2,
+            emailJudgementV1,
             emailJudgement,
+            emailImprovement,
         }
     })
 }

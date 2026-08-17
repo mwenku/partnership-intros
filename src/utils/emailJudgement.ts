@@ -1,5 +1,5 @@
 import { logger } from '../logger'
-import { EmailJudgementCheckType, EmailJudgementType, SourceType, VendorBriefType } from '../zod-schemas'
+import { EmailImprovementType, EmailJudgementCheckType, EmailJudgementType, SourceType, VendorBriefType } from '../zod-schemas'
 import { firstNameFrom } from './peopleFromSearch'
 
 type RecipientContext = {
@@ -445,6 +445,103 @@ function judgeEmailsAgainstContext(
     }
 }
 
+function failedCheckIds(judgement: EmailJudgementType): string[] {
+    return judgement.byEmail.flatMap((emailResult) => {
+        return emailResult.checks.filter((item) => !item.passed).map((item) => item.id)
+    })
+}
+
+function problemSourceFromContext(
+    first: EmailJudgementType,
+    recipient: RecipientContext,
+    opportunity: OpportunityContext,
+    sources: SourceType[],
+): EmailImprovementType['problemSource'] {
+    const failedIds = new Set(failedCheckIds(first))
+    const hasRecipient = Boolean(
+        (recipient.name.trim() && recipient.name !== 'Unknown') || recipient.companyName.trim(),
+    )
+    const hasFitResearch = Boolean(opportunity.companyFit.trim() || opportunity.personFit.trim())
+    const hasSelectedSignal = Boolean(opportunity.selectedSignal.trim())
+
+    if (failedIds.has('recipient-context') && !hasRecipient) {
+        return 'discovery'
+    }
+
+    if (failedIds.has('research-grounding') && sources.length === 0) {
+        return 'enrichment'
+    }
+
+    if (failedIds.has('opportunity-context') && !hasFitResearch && !hasSelectedSignal) {
+        return 'enrichment'
+    }
+
+    if ((failedIds.has('opportunity-context') || failedIds.has('fit-personalisation')) && !hasSelectedSignal) {
+        return 'signal-selection'
+    }
+
+    return 'writing'
+}
+
+function problemSourceWhy(
+    problemSource: EmailImprovementType['problemSource'],
+    recipient: RecipientContext,
+    opportunity: OpportunityContext,
+    sources: SourceType[],
+): string {
+    if (problemSource === 'discovery') {
+        return `Discovery did not return a usable recipient. Name: ${recipient.name || 'missing'}. Company: ${recipient.companyName || 'missing'}.`
+    }
+
+    if (problemSource === 'enrichment') {
+        return `Enrichment did not return enough research to ground the emails. Company fit: ${opportunity.companyFit ? 'present' : 'missing'}. Person fit: ${opportunity.personFit ? 'present' : 'missing'}. Sources: ${sources.length}.`
+    }
+
+    if (problemSource === 'signal-selection') {
+        return `Signal selection did not produce a usable partnership signal. Selected signal: ${opportunity.selectedSignal || 'missing'}.`
+    }
+
+    return `Discovery had ${recipient.name || 'the recipient'} at ${recipient.companyName || 'the company'}. Enrichment returned ${sources.length} source${sources.length === 1 ? '' : 's'}. Signal selection ${opportunity.selectedSignal ? 'had a selected signal' : 'had no selected signal'}. The remaining gaps were in the email writing, not in finding or researching the prospect.`
+}
+
+function explainEmailImprovement(
+    first: EmailJudgementType,
+    final: EmailJudgementType,
+    recipient: RecipientContext,
+    opportunity: OpportunityContext,
+    sources: SourceType[],
+): EmailImprovementType {
+    const problemSource = problemSourceFromContext(first, recipient, opportunity, sources)
+    const finalGapSet = new Set(final.gaps)
+    const fixedGaps = first.gaps.filter((gap) => !finalGapSet.has(gap))
+    const remainingGaps = final.gaps
+    const weakInFirst =
+        first.gaps.length === 0
+            ? 'The first snapshot already used the actual vendor, recipient, opportunity, and sourced research.'
+            : `The first snapshot failed ${first.gaps.length} context check${first.gaps.length === 1 ? '' : 's'}: ${first.gaps.join('; ')}.`
+    let whatChanged = `The rewrite fixed: ${fixedGaps.join('; ')}.`
+    if (fixedGaps.length === 0 && first.gaps.length === 0 && remainingGaps.length === 0) {
+        whatChanged = 'The rewrite kept the same grounded checks. No failed context checks were added or removed.'
+    } else if (fixedGaps.length === 0) {
+        whatChanged = `The rewrite did not fix the first-snapshot gaps: ${first.gaps.join('; ') || 'none'}.`
+    }
+
+    let howImproved = `The final snapshot still fails ${final.gaps.length} context check${final.gaps.length === 1 ? '' : 's'}: ${final.gaps.join('; ')}.`
+    if (final.overallVerdict === 'ready') {
+        howImproved = `The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.${fixedGaps.length ? ` Newly passing checks: ${fixedGaps.join('; ')}.` : ''}`
+    }
+
+    return {
+        problemSource,
+        problemSourceWhy: problemSourceWhy(problemSource, recipient, opportunity, sources),
+        weakInFirst,
+        whatChanged,
+        howImproved,
+        fixedGaps,
+        remainingGaps,
+    }
+}
+
 function insertLineBeforeSignOff(email: string, line: string): string {
     if (!line || normalized(email).includes(normalized(line))) {
         return email
@@ -511,4 +608,4 @@ function applyEmailJudgementPatches(
     })
 }
 
-export { applyEmailJudgementPatches, judgeEmailsAgainstContext }
+export { applyEmailJudgementPatches, explainEmailImprovement, judgeEmailsAgainstContext }
