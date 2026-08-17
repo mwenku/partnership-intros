@@ -55,6 +55,7 @@ function givenTavilyClient(): void {
     mockGetTavily.mockReturnValue({
         websets: {
             create: mockCreate,
+            createFromProspects: jest.fn(),
             enrichments: {
                 create: mockEnrichmentCreate,
             },

@@ -19,8 +19,9 @@ import {
     selectWorkEmail,
     uniqueByCompany,
 } from '../utils/peopleFromSearch'
-import { briefFromMetadata, collectSources, enrichmentKey, uniqueSources, WebsetSnapshot } from '../utils/webset'
-import { EmailJudgementType, SourceType, VendorBriefType } from '../zod-schemas'
+import { briefFromMetadata, collectSources, enrichmentKey, uniqueSources, websetMetadata, WebsetSnapshot } from '../utils/webset'
+import { EmailJudgementType, ProspectType, SourceType, VendorBriefType } from '../zod-schemas'
+import { readExampleRun } from '../utils/exampleRun'
 
 type WebsetCriterion = {
     description: string
@@ -125,6 +126,18 @@ type WebsetReaderClient = {
 type WebsetClient = {
     websets: {
         create: (input: WebsetCreateInput) => Promise<{ id: string; dashboardUrl: string }>
+        createFromSavedRun: (input: {
+            search: string
+            brief: VendorBriefType
+            emailModel?: string
+        }) => Promise<{ id: string; dashboardUrl: string }>
+        createFromProspects: (input: {
+            search: string
+            brief: VendorBriefType
+            prospects: ProspectType[]
+            dashboardUrl?: string
+            emailModel?: string
+        }) => Promise<{ id: string; dashboardUrl: string }>
         get: (websetId: string) => Promise<Omit<StoredWebset, 'items'>>
         items: {
             list: (websetId: string, options?: { limit?: number }) => Promise<{ data: WebsetItem[]; hasMore: boolean }>
@@ -331,15 +344,13 @@ function emailDrafts(pass: 1 | 2, item: WebsetItem, webset: StoredWebset): strin
         hostFromUrl(item.properties.url) ||
         'your team'
     const sourceUrl = itemEnrichmentByKey(item, webset, 'website') || item.properties.url || ''
-    const vendorOffer = singleLine(webset.metadata?.offer || 'its core solution')
-    const partnerGains = singleLine(webset.metadata?.partnerGains || 'new implementation and referral revenue')
-    const partnerGain = firstUsefulLine(partnerGains.split(',')[0] || partnerGains)
-    const targetCustomers = singleLine(webset.metadata?.targetCustomers || 'shared target accounts')
     const companyFit = firstUsefulLine(itemEnrichmentByKey(item, webset, 'companyFit'))
     const personFit = firstUsefulLine(itemEnrichmentByKey(item, webset, 'personFit'))
     const signals = firstUsefulLine(itemEnrichmentByKey(item, webset, 'signals'))
     const selectedSignal = firstUsefulLine(itemEnrichmentByKey(item, webset, 'selectedSignal'))
     const fitHook = selectedSignal || personFit || companyFit || `your current work at ${companyName}`
+    const offer = webset.metadata?.offer || 'this partnership'
+    const valueProposition = `${vendorName} equips partners to offer ${offer}.`
     const cited = sourcesFromItem(item)
     const followUpUrl = (index: number): string => cited[index]?.url || sourceUrl
     const signOff = vendorName
@@ -347,74 +358,54 @@ function emailDrafts(pass: 1 | 2, item: WebsetItem, webset: StoredWebset): strin
     if (pass === 1) {
         return [
             'EMAIL 1',
-            `Subject: ${companyName} as a ${vendorName} implementation partner`,
+            `Subject: ${companyName} and ${vendorName}`,
             `Hi ${firstName},`,
-            `I'd like to introduce a partnership with ${vendorName}. The reason to take this is what you gain: ${partnerGain}.`,
-            `You are ${personRole} at ${companyName}. ${fitHook}`,
-            `${vendorName} offers ${vendorOffer}. That is how you take a stronger offer to ${targetCustomers}.`,
-            `Would a 15-minute call this month be useful to explore that return?`,
+            `I'm reaching out as you lead ${personRole} at ${companyName}. ${valueProposition} Are you free for a chat?`,
             signOff,
             '',
             'EMAIL 2',
-            `Subject: ${companyName} public delivery overlap with ${vendorName}`,
+            `Subject: ${companyName} public note`,
             `Hi ${firstName},`,
-            `A public proof point for this partnership is ${companyFit || fitHook} ${followUpUrl(0)}.`,
-            `That is why the gain for you is ${partnerGain}, not a generic referral.`,
-            `Would you like me to send a one-page outline before we discuss it on a call?`,
+            `I noticed this public write-up: ${companyFit || fitHook} ${followUpUrl(0)}. ${valueProposition} Are you free for a chat?`,
             signOff,
             '',
             'EMAIL 3',
-            `Subject: What ${companyName} would do as a ${vendorName} partner`,
+            `Subject: ${companyName} and ${vendorName}`,
             `Hi ${firstName},`,
-            `If you partnered, the gain for you is ${partnerGain} with ${targetCustomers}.`,
-            `For ${companyName}, that maps to this additional public signal: ${signals || personFit || fitHook} ${followUpUrl(1)}.`,
-            `Would it be worth a short conversation to map this against your current delivery work?`,
+            `I noticed another public note: ${signals || personFit || fitHook} ${followUpUrl(1)}. ${vendorName} enables partners to offer ${offer}. Are you available for a chat?`,
             signOff,
             '',
             'EMAIL 4',
-            `Subject: Is a ${vendorName} conversation useful for ${companyName}?`,
+            `Subject: ${companyName} chat`,
             `Hi ${firstName},`,
-            `Last useful note: ${selectedSignal || companyFit || fitHook} ${followUpUrl(2)}.`,
-            `The gain for you is still ${partnerGain}.`,
-            `If this is not a priority, a no is completely fine.`,
-            `Would you prefer a 15-minute call, or should we close this out?`,
+            `I noticed one last sourced point: ${selectedSignal || companyFit || fitHook} ${followUpUrl(2)}. ${valueProposition} If this is not a priority, a no is completely fine. Are you free for a chat?`,
             signOff,
         ].join('\n\n')
     }
 
     return [
         'EMAIL 1',
-        `Subject: ${companyName} as a ${vendorName} implementation partner`,
+        `Subject: ${companyName} and ${vendorName}`,
         `Hi ${firstName},`,
-        `I'd like to introduce a partnership with ${vendorName}.`,
-        `The reason to take this is what you gain: ${partnerGain}.`,
-        `You are ${personRole} at ${companyName}. ${fitHook}`,
-        `Would you be open to a short call to explore whether that return is commercially viable?`,
+        `I'm reaching out as you lead ${personRole} at ${companyName}. ${valueProposition} Are you free for a chat?`,
         signOff,
         '',
         'EMAIL 2',
-        `Subject: ${companyName} public proof for a ${vendorName} partner motion`,
+        `Subject: ${companyName} public note`,
         `Hi ${firstName},`,
-        `A public proof point that was not in the first note: ${companyFit || fitHook} ${followUpUrl(0)}.`,
-        `It shows why the gain for you is ${partnerGain} on work you already do.`,
-        `Would a 10-minute call help review where a first joint piece of work would start?`,
+        `I noticed this public write-up: ${companyFit || fitHook} ${followUpUrl(0)}. ${valueProposition} Are you free for a chat?`,
         signOff,
         '',
         'EMAIL 3',
-        `Subject: What ${companyName} gains with ${vendorName}`,
+        `Subject: ${companyName} and ${vendorName}`,
         `Hi ${firstName},`,
-        `If you partnered, the gain for you is ${partnerGain} with ${targetCustomers}.`,
-        `That maps onto this additional public work: ${signals || personFit || fitHook} ${followUpUrl(1)}.`,
-        `Would it be useful to review a one-page partner motion on a short call?`,
+        `I noticed another public note: ${signals || personFit || fitHook} ${followUpUrl(1)}. ${vendorName} enables partners to offer ${offer}. Are you available for a chat?`,
         signOff,
         '',
         'EMAIL 4',
-        `Subject: ${companyName} and ${vendorName}: is a conversation useful?`,
+        `Subject: ${companyName} chat`,
         `Hi ${firstName},`,
-        `One last sourced point: ${selectedSignal || companyFit || fitHook} ${followUpUrl(2)}.`,
-        `The gain for you is still ${partnerGain}.`,
-        `If this is not relevant, please say so and I will close it out.`,
-        `Would you like to explore this on a brief call, or should we stop here?`,
+        `I noticed one last sourced point: ${selectedSignal || companyFit || fitHook} ${followUpUrl(2)}. ${valueProposition} If this is not relevant, please say so and I will close it out. Are you free for a chat?`,
         signOff,
     ].join('\n\n')
 }
@@ -475,10 +466,10 @@ function modelContext(item: WebsetItem, webset: StoredWebset, pass: 1 | 2): stri
         `Primary source snippet: ${sourceSnippet}`,
         `Citeable sources:\n${citedSources || 'None'}`,
         `Current year: ${new Date().getUTCFullYear()}`,
-        'Personalisation rule: only mention facts that explain why this partnership fits. Do not mention unrelated personal details.',
+        'Personalisation rule: open with I am reaching out as you lead, or I noticed you are leading. Do not mention unrelated personal details.',
         'Emails 2, 3 and 4 must paste a full URL from Citeable sources.',
         'Email 4 must include: If this is not a priority, a no is completely fine.',
-        'Gain rule: every email must state a concrete gain for the recipient. Lead with what they get, not what they would contribute. Write it as you-facing commercial copy. Do not paste the Partner gains list verbatim.',
+        'Shape rule: one paragraph of 3 sentences. Intro. Vendor equips or enables partners to offer the vendor offer. Are you free for a chat? Never start a sentence with You can or You could. Sign off once as the vendor.',
         previousDraft ? `\nPrevious draft to improve:\n${previousDraft}` : '',
     ].join('\n')
 }
@@ -490,10 +481,10 @@ function emailWriterSystemPrompt(): string {
         'Recruit them as partners, never as customers.',
         'You follow the EMAIL 1 / EMAIL 2 / EMAIL 3 / EMAIL 4 label format exactly.',
         'Each email closes with the vendor name.',
-        'The sequence must: introduce the partnership; lead every email with what the recipient gains and why they should partner; explain why the company and person appear relevant; use evidence-backed personalisation that explains fit; add useful new information in each follow-up; end with a respectful low-friction close.',
-        'Personalisation should explain why the opportunity fits. Do not include unrelated personal facts merely to make the email appear personalised.',
+        'Each email is one short paragraph of 3 sentences, like a strong email 1: intro as you lead or I noticed you are leading; the vendor equips or enables partners to offer the vendor offer; ask if they are free for a chat.',
+        'Do not split those sentences onto separate lines. Sign off once as the vendor name.',
         'You never use generic follow-ups such as "just checking in" or "bumping this".',
-        'Every email must answer why they should partner by stating what they gain. Write that as you-facing commercial copy. Do not lead with what they would do for the vendor.',
+        'Never start a sentence with You can or You could. Do not write By partnering with X, you can.',
         'Each email uses a different proof point and a different URL. Subjects name the prospect company or a specific proof.',
         'Emails 2, 3 and 4 must each paste a full http URL from the citeable sources.',
         'Email 4 must include the sentence: If this is not a priority, a no is completely fine.',
@@ -504,13 +495,15 @@ function emailWriterSystemPrompt(): string {
 async function completeOpenAiPrompt(
     systemContent: string,
     userContent: string,
-    options: { temperature: number; maxTokens: number },
+    options: { temperature: number; maxTokens: number; model?: string },
 ): Promise<string> {
     const apiKey = openAiApiKey()
     if (!apiKey) {
         return ''
     }
 
+    const model = options.model?.trim() || openAiEmailModel()
+    logger.info('calling OpenAI chat completions', { model })
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -518,7 +511,7 @@ async function completeOpenAiPrompt(
             Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: openAiEmailModel(),
+            model,
             temperature: options.temperature,
             max_tokens: options.maxTokens,
             messages: [
@@ -548,10 +541,11 @@ async function completeOpenAiPrompt(
     return payload.choices?.[0]?.message?.content?.trim() || ''
 }
 
-async function completeEmailPrompt(userContent: string): Promise<string> {
+async function completeEmailPrompt(userContent: string, model: string): Promise<string> {
     return completeOpenAiPrompt(emailWriterSystemPrompt(), userContent, {
         temperature: 0.4,
         maxTokens: 1800,
+        model,
     })
 }
 
@@ -607,6 +601,8 @@ async function generateEmailDrafts(
     webset: StoredWebset,
     description: string,
 ): Promise<string> {
+    const model = webset.metadata?.emailModel?.trim() || openAiEmailModel()
+    logger.info('writing emails', { pass, model })
     const apiKey = openAiApiKey()
     if (!apiKey) {
         logger.warn('OPENAI_API_KEY is missing, using fallback email drafts')
@@ -623,7 +619,7 @@ async function generateEmailDrafts(
             '',
             'Return only the four emails in the requested format and nothing else.',
         ].join('\n')
-        const content = await completeEmailPrompt(prompt)
+        const content = await completeEmailPrompt(prompt, model)
         if (!content) {
             logger.warn('OpenAI returned empty email content, using fallback drafts')
             return finaliseGeneratedEmails(item, webset, emailDrafts(pass, item, webset))
@@ -655,11 +651,13 @@ async function generateEmailDrafts(
                 'The emails introduce a partnership with the vendor. Do not mention Souk.',
                 'Emails 2, 3 and 4 must each paste a full http URL from Citeable sources.',
                 'Email 4 must include the sentence: If this is not a priority, a no is completely fine.',
-                'Introduce the partnership, lead every email with what they gain and why they should partner, explain why this company and this person are relevant, use evidence-backed personalisation that explains fit, add new sourced information in each follow-up, and end with a respectful low-friction close.',
+                'Each email should be one paragraph of 3 sentences: intro, vendor equips or enables partners to offer the offer, and ask if they are free for a chat.',
+                'Do not open any email with You can, You could, or By partnering with X, you can.',
                 'Do not include unrelated personal facts. Do not write generic follow-ups such as just checking in or bumping this.',
                 'Keep EMAIL 1, EMAIL 2, EMAIL 3, and EMAIL 4 labels.',
                 'Return only the four emails and nothing else.',
             ].join('\n'),
+            model,
         )
         if (!repaired) {
             logger.warn('email repair returned empty, keeping original draft', { pass })
@@ -999,6 +997,174 @@ function getStoredWebset(websetId: string): StoredWebset {
     return webset
 }
 
+function referencesFromProspect(prospect: ProspectType): ItemReference[] {
+    return prospect.sources.map((source) => ({
+        title: source.title,
+        snippet: source.snippet,
+        url: source.url,
+    }))
+}
+
+function itemFromSavedProspect(
+    prospect: ProspectType,
+    enrichments: Array<{ id: string; key: string }>,
+): WebsetItem {
+    const references = referencesFromProspect(prospect)
+    const discoveredPerson: DiscoveredPerson = {
+        name: prospect.name,
+        position: prospect.position,
+        location: prospect.location,
+        profileUrl: prospect.profileUrl,
+        pictureUrl: prospect.pictureUrl,
+        companyName: prospect.companyName,
+        companyWebsite: prospect.companyWebsite,
+        email: prospect.email,
+        personFit: prospect.personFit,
+    }
+    const valuesByKey: Record<string, string> = {
+        employer: prospect.companyName,
+        website: prospect.companyWebsite,
+        email: prospect.email,
+        companyFit: prospect.companyFit,
+        personFit: prospect.personFit,
+        signals: prospect.signals.map((signal) => signal.text).join('\n'),
+        selectedSignal: [prospect.selectedSignal, prospect.selectedSignalWhy].filter(Boolean).join('\n'),
+    }
+
+    return {
+        id: prospect.id,
+        properties: {
+            url: prospect.profileUrl || prospect.companyWebsite,
+            person: {
+                name: prospect.name,
+                location: prospect.location,
+                position: prospect.position,
+                pictureUrl: prospect.pictureUrl,
+                company: { name: prospect.companyName },
+            },
+        },
+        evaluations: prospect.evaluations.map((evaluation) => ({
+            criterion: evaluation.criterion,
+            reasoning: evaluation.reasoning,
+            satisfied: evaluation.satisfied,
+            references: evaluation.sources,
+        })),
+        enrichments: enrichments.map((enrichment) => ({
+            enrichmentId: enrichment.id,
+            result: valuesByKey[enrichment.key] ? [valuesByKey[enrichment.key]] : [],
+            reasoning: valuesByKey[enrichment.key] || '',
+            references,
+        })),
+        tavilyResult: {
+            title: prospect.companyName,
+            url: prospect.companyWebsite || prospect.profileUrl,
+            content: prospect.companyFit,
+        },
+        discoveredPerson,
+    }
+}
+
+function createWebsetFromProspects(
+    search: string,
+    brief: VendorBriefType,
+    prospects: ProspectType[],
+    dashboardUrl = '',
+    emailModel = '',
+): {
+    id: string
+    dashboardUrl: string
+} {
+    const researchKeys = ['employer', 'website', 'email', 'companyFit', 'personFit', 'signals', 'selectedSignal']
+    const enrichments = researchKeys.map((key) => ({
+        id: nextEnrichmentId(),
+        key,
+        description: key,
+        metadata: { key },
+        status: 'completed',
+    }))
+    const items = prospects.map((prospect) => itemFromSavedProspect(prospect, enrichments))
+    const websetId = nextWebsetId()
+    const webset: StoredWebset = {
+        id: websetId,
+        status: 'idle',
+        dashboardUrl,
+        metadata: websetMetadata(search, brief, emailModel),
+        searches: [{ progress: { found: items.length, completion: 100 } }],
+        enrichments: enrichments.map((enrichment) => ({
+            id: enrichment.id,
+            description: enrichment.description,
+            metadata: enrichment.metadata,
+            status: enrichment.status,
+        })),
+        items: { data: items },
+    }
+
+    websetsById.set(websetId, webset)
+    logger.info('seeded webset from existing research', { websetId, itemCount: items.length, emailModel })
+    return {
+        id: websetId,
+        dashboardUrl: webset.dashboardUrl || '',
+    }
+}
+
+async function createWebsetFromSavedRun(
+    search: string,
+    brief: VendorBriefType,
+    emailModel = '',
+): Promise<{
+    id: string
+    dashboardUrl: string
+}> {
+    const saved = await readExampleRun()
+    logger.info('seeded webset from saved example run', { itemCount: saved.prospects.length, emailModel })
+    return createWebsetFromProspects(search, brief, saved.prospects, saved.dashboardUrl || '', emailModel)
+}
+
+async function addStoredWebsetEnrichment(
+    websetId: string,
+    enrichment: WebsetEnrichmentInput,
+): Promise<{ id: string; description: string; metadata: Record<string, string>; status: string }> {
+    const webset = getStoredWebset(websetId)
+    const key = enrichment.metadata?.key || ''
+    const enrichmentId = nextEnrichmentId()
+    const metadata = { key }
+    const description = enrichment.description || ''
+    const nextEnrichment = {
+        id: enrichmentId,
+        description,
+        metadata,
+        status: 'completed',
+    }
+
+    webset.enrichments = [...(webset.enrichments || []), nextEnrichment]
+    const itemData = await Promise.all(
+        webset.items.data.map(async (item) => {
+            const value =
+                key === 'emailsV1'
+                    ? await generateEmailDrafts(1, item, webset, description)
+                    : key === 'emailsV2'
+                      ? await generateEmailDrafts(2, item, webset, description)
+                      : resultForKey(key, item.tavilyResult, item.discoveredPerson)
+            const itemEnrichment = {
+                enrichmentId,
+                result: [value],
+                reasoning: value,
+                references: [referenceFromResult(item.tavilyResult)],
+            }
+
+            return {
+                ...item,
+                enrichments: [...item.enrichments, itemEnrichment],
+            }
+        }),
+    )
+    webset.items = {
+        data: itemData,
+    }
+    websetsById.set(websetId, webset)
+    return nextEnrichment
+}
+
 function exaApiKey(): string {
     return (process.env.EXA_API_KEY || '').trim()
 }
@@ -1229,7 +1395,39 @@ function getExaWebsetsClient(): WebsetClient {
                     dashboardUrl,
                 }
             },
+            createFromSavedRun: async (input: {
+                search: string
+                brief: VendorBriefType
+                emailModel?: string
+            }): Promise<{ id: string; dashboardUrl: string }> => {
+                logger.info('skipping live research, seeding from saved example run')
+                return createWebsetFromSavedRun(input.search, input.brief, input.emailModel || '')
+            },
+            createFromProspects: async (input: {
+                search: string
+                brief: VendorBriefType
+                prospects: ProspectType[]
+                dashboardUrl?: string
+                emailModel?: string
+            }): Promise<{ id: string; dashboardUrl: string }> => {
+                logger.info('skipping live research, seeding from existing prospects')
+                return createWebsetFromProspects(
+                    input.search,
+                    input.brief,
+                    input.prospects,
+                    input.dashboardUrl || '',
+                    input.emailModel || '',
+                )
+            },
             get: async (websetId: string): Promise<Omit<StoredWebset, 'items'>> => {
+                if (websetsById.has(websetId)) {
+                    logger.info('using locally stored fixture webset', { websetId })
+                    const stored = getStoredWebset(websetId)
+                    const rest = { ...stored }
+                    delete (rest as Partial<StoredWebset>).items
+                    return rest
+                }
+
                 const raw = await exaWebsetsFetch(`/websets/${websetId}`)
                 const mapped = mapExaWebset(raw)
                 logger.info('exa webset loaded', {
@@ -1244,6 +1442,16 @@ function getExaWebsetsClient(): WebsetClient {
                     websetId: string,
                     options?: { limit?: number },
                 ): Promise<{ data: WebsetItem[]; hasMore: boolean }> => {
+                    if (websetsById.has(websetId)) {
+                        logger.info('listing locally stored fixture webset items', { websetId })
+                        const stored = getStoredWebset(websetId)
+                        const limit = options?.limit || stored.items.data.length
+                        return {
+                            data: stored.items.data.slice(0, limit),
+                            hasMore: stored.items.data.length > limit,
+                        }
+                    }
+
                     const limit = options?.limit || 10
                     const listed = await exaWebsetsFetch(`/websets/${websetId}/items?limit=${limit}`)
                     const webset = mapExaWebset(await exaWebsetsFetch(`/websets/${websetId}`))
@@ -1274,6 +1482,11 @@ function getExaWebsetsClient(): WebsetClient {
                     websetId: string,
                     enrichment: WebsetEnrichmentInput,
                 ): Promise<{ id: string; description: string; metadata: Record<string, string>; status: string }> => {
+                    if (websetsById.has(websetId)) {
+                        logger.info('adding enrichment to locally stored fixture webset', { websetId })
+                        return addStoredWebsetEnrichment(websetId, enrichment)
+                    }
+
                     const key = enrichment.metadata?.key || ''
                     const description = enrichment.description || ''
                     if (key !== 'emailsV1' && key !== 'emailsV2') {
@@ -1453,6 +1666,30 @@ function getTavily(): WebsetClient {
                     dashboardUrl: '',
                 }
             },
+            createFromSavedRun: async (input: {
+                search: string
+                brief: VendorBriefType
+                emailModel?: string
+            }): Promise<{ id: string; dashboardUrl: string }> => {
+                logger.info('skipping live research, seeding from saved example run')
+                return createWebsetFromSavedRun(input.search, input.brief, input.emailModel || '')
+            },
+            createFromProspects: async (input: {
+                search: string
+                brief: VendorBriefType
+                prospects: ProspectType[]
+                dashboardUrl?: string
+                emailModel?: string
+            }): Promise<{ id: string; dashboardUrl: string }> => {
+                logger.info('skipping live research, seeding from existing prospects')
+                return createWebsetFromProspects(
+                    input.search,
+                    input.brief,
+                    input.prospects,
+                    input.dashboardUrl || '',
+                    input.emailModel || '',
+                )
+            },
             get: async (websetId: string): Promise<Omit<StoredWebset, 'items'>> => {
                 const webset = getStoredWebset(websetId)
                 const rest = { ...webset }
@@ -1479,46 +1716,7 @@ function getTavily(): WebsetClient {
                     websetId: string,
                     enrichment: WebsetEnrichmentInput,
                 ): Promise<{ id: string; description: string; metadata: Record<string, string>; status: string }> => {
-                    const webset = getStoredWebset(websetId)
-                    const key = enrichment.metadata?.key || ''
-                    const enrichmentId = nextEnrichmentId()
-                    const metadata = { key }
-                    const description = enrichment.description || ''
-                    const nextEnrichment = {
-                        id: enrichmentId,
-                        description,
-                        metadata,
-                        status: 'completed',
-                    }
-
-                    webset.enrichments = [...(webset.enrichments || []), nextEnrichment]
-                    const itemData = await Promise.all(
-                        webset.items.data.map(async (item) => {
-                            const value =
-                                key === 'emailsV1'
-                                    ? await generateEmailDrafts(1, item, webset, description)
-                                    : key === 'emailsV2'
-                                      ? await generateEmailDrafts(2, item, webset, description)
-                                      : resultForKey(key, item.tavilyResult, item.discoveredPerson)
-                            const itemEnrichment = {
-                                enrichmentId,
-                                result: [value],
-                                reasoning: value,
-                                references: [referenceFromResult(item.tavilyResult)],
-                            }
-
-                            return {
-                                ...item,
-                                enrichments: [...item.enrichments, itemEnrichment],
-                            }
-                        }),
-                    )
-                    webset.items = {
-                        data: itemData,
-                    }
-                    websetsById.set(websetId, webset)
-
-                    return nextEnrichment
+                    return addStoredWebsetEnrichment(websetId, enrichment)
                 },
             },
         },

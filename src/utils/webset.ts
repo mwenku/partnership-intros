@@ -114,11 +114,9 @@ function emailSequenceInstructions(brief: VendorBriefType): string {
 These are drafts for review only. Do not send them. The prototype stops at reviewed sequences ready for potential use.
 Do not mention Souk. Recruit the recipient as a partner for ${brief.vendorName}.
 
-Write like a senior Partner Development Manager: commercially specific, evidence-backed, concise, no hype.
+Write like email 1 in a strong sequence: one short paragraph a person would actually send. Three sentences. No filler.
 
 Generate exactly four concise, plain-text emails for every prospect.
-
-The emails introduce the vendor partnership directly to the external partner prospect.
 
 Return exactly four emails, labelled:
 
@@ -128,44 +126,40 @@ EMAIL 3
 EMAIL 4
 
 Each email:
-- Maximum 110 words
+- One body paragraph of 3 sentences after the greeting. Email 4 may use a 4th sentence for the easy decline.
 - No HTML, bullets, markdown, or placeholders
-- First line: Subject: <specific subject>
+- First line: Subject: <company or role, and the partnership>
 - Open with Hi <first name>,
-- Close as ${brief.vendorName}
-- End with a direct question that uses one of: call, chat, conversation, meeting, explore, discuss, review
+- Close once as ${brief.vendorName}
+- End with: Are you free for a chat? or Are you available for a chat?
 
-The sequence should:
-- Introduce the partnership opportunity.
-- Lead every email with what the recipient gains if they partner, and why they should say yes.
-- Explain why the company and person appear relevant.
-- Use relevant, evidence-backed personalisation.
-- Add useful new information in each follow-up.
-- End with a respectful, low-friction close.
-- Avoid generic follow-ups such as "just checking in" or "bumping this."
+Each email has only three jobs, as three sentences in one paragraph:
+1. Intro: I'm reaching out as you lead [role] at [company], where [what their team does]. Or: I noticed you're leading [role] at [company].
+2. Value: ${brief.vendorName} equips partners to offer [the vendor offer]. Or: ${brief.vendorName} enables partners to deliver [the vendor offer].
+3. Ask: Are you free for a chat?
 
-EMAIL 1: Open with the commercial gain for them if they partner with ${brief.vendorName}. Then why this company and this person are the right fit. One evidence-backed hook. Do not mention Souk. End with a low-friction question.
+EMAIL 1: I'm reaching out as you lead [role] at [company], where [what they do]. ${brief.vendorName} equips partners to offer [offer]. Are you free for a chat? Do not mention Souk.
 
-EMAIL 2: Add a new sourced fact with a URL. Tie that fact to a gain for them that was not the same sentence as email 1. Do not repeat email 1.
+EMAIL 2: I noticed [a new sourced fact with a URL]. ${brief.vendorName} enables partners to deliver [offer]. Are you free for a chat? Do not repeat email 1.
 
-EMAIL 3: Make the gain concrete: what they get for their current clients or accounts, and why that is worth partnering. Paste a full source URL from the research. Do not repeat emails 1 or 2. Do not paste the brief's contribute/gain lists.
+EMAIL 3: I noticed [another sourced fact with a URL]. ${brief.vendorName} equips partners to offer [offer]. Are you available for a chat? Do not repeat emails 1 or 2.
 
-EMAIL 4: Restate the gain in one line. Add one last useful sourced fact with a URL that was not used earlier. Include the sentence: If this is not a priority, a no is completely fine. Then a direct question.
+EMAIL 4: I noticed [one last sourced fact with a URL]. ${brief.vendorName} enables partners to deliver [offer]. If this is not a priority, a no is completely fine. Are you free for a chat?
 
-Personalisation should explain why the opportunity fits.
-Do not include unrelated personal facts merely to make the email appear personalised.
+Personalisation is the intro fact. Do not include unrelated personal details.
 Do not invent customers, metrics, or capabilities.
 Use only facts present in the research context.
 
 Craft rules:
 - Address the recipient as you. Never describe them in the third person.
 - Greet with their given name only. Never use a title, credential, or initials such as MCMI or MCIPD.
+- Never start a sentence with You can or You could. Do not write By partnering with X, you can.
 - Do not paste research notes, LinkedIn headlines, or vendor brief fields verbatim.
 - Do not dump comma-separated lists of contributions, gains, or target customers.
 - Each email must use a different proof point and a different URL. Prefer a company, case-study, or news URL over a LinkedIn profile URL.
 - Subject lines must name the prospect company or a specific proof. Do not use subjects such as Final note, Sourced proof, or Partnership opportunity.
 - One idea and one link per email.
-- Put a blank line between the subject, greeting, body, question, and sign-off.
+- Put a blank line between the subject, greeting, body paragraph, and sign-off. Keep the three sentences in one paragraph.
 
 ${formatBrief(brief)}
 
@@ -185,11 +179,11 @@ function emailEnrichmentDescription(brief: VendorBriefType, pass: 1 | 2): string
     return tagged(
         'emailsV2',
         `Rewrite a stronger four-email partner recruitment sequence for this person.
-Improve the previous draft on the partner's gain, fit, and sourced specificity.
+Improve the previous draft by matching email 1: one paragraph of three sentences. Intro as you lead or I noticed you're leading. ${brief.vendorName} equips or enables partners to offer the vendor offer. Ask if they are free for a chat.
 Use only facts that have public sources. If a fact is unverified, omit it.
-Each follow-up must add a new sourced fact rather than bumping the previous note.
-The selected personalisation signal must explain fit with ${brief.vendorName}.
-If the previous draft pasted brief lists or wrote about the person in the third person, rewrite those sentences as you-facing commercial copy.
+Each follow-up must introduce a new sourced fact rather than bumping the previous note.
+The selected personalisation signal should be the intro fact.
+If the previous draft was longer than 4 sentences, split across lines, or opened with You can or You could, rewrite it as one short paragraph.
 Do not reuse a URL or proof point from an earlier email in the sequence.
 Do not include unrelated personal details.
 Do not mention Souk.
@@ -199,8 +193,8 @@ ${shared}`,
     )
 }
 
-function websetMetadata(search: string, brief: VendorBriefType): Record<string, string> {
-    return {
+function websetMetadata(search: string, brief: VendorBriefType, emailModel = ''): Record<string, string> {
+    const metadata: Record<string, string> = {
         search: clip(search),
         vendorName: clip(brief.vendorName),
         website: clip(brief.website),
@@ -212,6 +206,13 @@ function websetMetadata(search: string, brief: VendorBriefType): Record<string, 
         partnerGains: clip(brief.partnerGains),
         constraints: clip(brief.constraints),
     }
+    const trimmedEmailModel = (emailModel || '').trim()
+    if (!trimmedEmailModel) {
+        return metadata
+    }
+
+    metadata.emailModel = clip(trimmedEmailModel)
+    return metadata
 }
 
 function collectSources(

@@ -1,5 +1,4 @@
-import { readFile } from 'fs/promises'
-import { join } from 'path'
+import { readExampleRun } from '@/src/utils/exampleRun'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -7,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 async function GET(): Promise<NextResponse> {
     try {
-        const contents = await readFile(join(process.cwd(), 'examples', 'run.json'), 'utf8')
-        return new NextResponse(contents, {
+        const saved = await readExampleRun()
+        return new NextResponse(JSON.stringify(saved, null, 2), {
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Disposition': 'attachment; filename="run.json"',

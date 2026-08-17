@@ -361,6 +361,27 @@ button.secondary {
   margin: 0 0 8px;
 }
 
+.rewrite-tools {
+  margin-top: 16px;
+}
+
+.rewrite-tools summary {
+  font-family: "Gill Sans", "Trebuchet MS", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rewrite-tools label {
+  margin-top: 12px;
+}
+
+.rewrite-tools button {
+  margin-top: 12px;
+}
+
 .research {
   margin-top: 20px;
 }

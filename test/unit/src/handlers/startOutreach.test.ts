@@ -10,13 +10,22 @@ jest.mock('../../../../src/logger', () => ({
 }))
 
 const mockCreate = jest.fn()
+const mockCreateFromSavedRun = jest.fn()
+const mockCreateFromProspects = jest.fn()
 const mockGetTavily = jest.fn()
 jest.mock('../../../../src/clients/tavily', () => ({
     getTavily: (): unknown => mockGetTavily(),
 }))
 
 import { startOutreach } from '../../../../src/handlers/startOutreach'
-import { OutreachRequestType, VendorBriefType } from '../../../../src/zod-schemas'
+import {
+    EmailImprovementType,
+    EmailJudgementType,
+    OutreachRequestType,
+    ProspectType,
+    VendorBriefType,
+} from '../../../../src/zod-schemas'
+import { websetMetadata } from '../../../../src/utils/webset'
 
 function givenValidVendorBrief(overrides: Partial<VendorBriefType> = {}): VendorBriefType {
     return {
@@ -33,6 +42,54 @@ function givenValidVendorBrief(overrides: Partial<VendorBriefType> = {}): Vendor
     }
 }
 
+function givenEmailJudgement(): EmailJudgementType {
+    return {
+        overallVerdict: 'revise',
+        overallSummary: '',
+        gaps: [],
+        byEmail: [],
+    }
+}
+
+function givenEmailImprovement(): EmailImprovementType {
+    return {
+        problemSource: 'writing',
+        problemSourceWhy: '',
+        weakInFirst: '',
+        whatChanged: '',
+        howImproved: '',
+        fixedGaps: [],
+        remainingGaps: [],
+    }
+}
+
+function givenProspect(overrides: Partial<ProspectType> = {}): ProspectType {
+    return {
+        id: 'item_1',
+        name: 'Jane Partner',
+        position: 'Head of Partnerships',
+        location: 'London, UK',
+        profileUrl: 'https://example.com/jane',
+        pictureUrl: '',
+        companyName: 'Example Consulting',
+        companyWebsite: 'https://example.com',
+        email: 'jane@example.com',
+        companyFit: 'Fits',
+        personFit: 'Fits',
+        evaluations: [],
+        signals: [],
+        selectedSignal: '',
+        selectedSignalWhy: '',
+        sources: [],
+        emailsV1: ['', '', '', ''],
+        emailsV2: ['', '', '', ''],
+        emailJudgementV1: givenEmailJudgement(),
+        emailJudgement: givenEmailJudgement(),
+        emailImprovement: givenEmailImprovement(),
+        ...overrides,
+    }
+}
+
 function givenValidOutreachRequest(): OutreachRequestType {
     return {
         search: 'Find partnership leaders at UK consultancies',
@@ -44,6 +101,8 @@ function givenTavilyClient(): void {
     mockGetTavily.mockReturnValue({
         websets: {
             create: mockCreate,
+            createFromSavedRun: mockCreateFromSavedRun,
+            createFromProspects: mockCreateFromProspects,
         },
     })
 }
@@ -111,6 +170,20 @@ describe('startOutreach handler unit tests', () => {
             expect(actual.statusCode).toBe(500)
             expect(mockCreate).toHaveBeenCalledTimes(1)
         })
+
+        it('should return 400 if reuseResearch is set and the example run is missing', async () => {
+            mockCreateFromSavedRun.mockRejectedValueOnce(new Error('Example run is not saved yet'))
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+            })
+
+            expect(JSON.parse(actual.body).message).toEqual('Example run is not saved yet')
+            expect(actual.statusCode).toBe(400)
+            expect(mockCreate).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromProspects).toHaveBeenCalledTimes(0)
+        })
     })
 
     describe('success', () => {
@@ -131,6 +204,202 @@ describe('startOutreach handler unit tests', () => {
             expect(mockCreate.mock.calls[0][0].search.count).toEqual(5)
             expect(mockCreate.mock.calls[0][0].search.maxPeoplePerCompany).toEqual(1)
             expect(mockCreate.mock.calls[0][0].search.criteria).toHaveLength(3)
+            expect(mockCreate.mock.calls[0][0].metadata).toEqual(
+                websetMetadata('Find partnership leaders at UK consultancies', givenValidVendorBrief()),
+            )
+        })
+
+        it('should skip live research when reuseResearch is true', async () => {
+            mockCreateFromSavedRun.mockResolvedValueOnce({
+                id: 'webset_fixture',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+            })
+            const body = JSON.parse(actual.body)
+
+            expect(actual.statusCode).toBe(200)
+            expect(body.data).toEqual({
+                websetId: 'webset_fixture',
+                dashboardUrl: '',
+                reusedResearch: true,
+            })
+            expect(mockCreate).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromSavedRun).toHaveBeenCalledTimes(1)
+            expect(mockCreateFromSavedRun.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+            })
+            expect(mockCreateFromProspects).toHaveBeenCalledTimes(0)
+        })
+
+        it('should seed from current prospects when reuseResearch is true', async () => {
+            const prospects = [givenProspect()]
+            mockCreateFromProspects.mockResolvedValueOnce({
+                id: 'webset_existing',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+                prospects,
+            })
+            const body = JSON.parse(actual.body)
+
+            expect(actual.statusCode).toBe(200)
+            expect(body.data).toEqual({
+                websetId: 'webset_existing',
+                dashboardUrl: '',
+                reusedResearch: true,
+            })
+            expect(mockCreate).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromSavedRun).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromProspects).toHaveBeenCalledTimes(1)
+            expect(mockCreateFromProspects.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+                prospects,
+                dashboardUrl: '',
+            })
+        })
+
+        it('should run live research if prospects are sent without reuseResearch', async () => {
+            givenWebsetCreated()
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                prospects: [givenProspect()],
+            })
+            const body = JSON.parse(actual.body)
+
+            expect(actual.statusCode).toBe(200)
+            expect(body.data).toEqual({
+                websetId: 'webset_123',
+                dashboardUrl: '',
+            })
+            expect(mockCreate).toHaveBeenCalledTimes(1)
+            expect(mockCreateFromProspects).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromSavedRun).toHaveBeenCalledTimes(0)
+        })
+
+        it('should use the saved example if reuseResearch is true and prospects are empty', async () => {
+            mockCreateFromSavedRun.mockResolvedValueOnce({
+                id: 'webset_fixture',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+                prospects: [],
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreateFromProspects).toHaveBeenCalledTimes(0)
+            expect(mockCreateFromSavedRun).toHaveBeenCalledTimes(1)
+            expect(mockCreateFromSavedRun.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+            })
+        })
+
+        it('should pass a trimmed emailModel when rewriting from saved research', async () => {
+            mockCreateFromSavedRun.mockResolvedValueOnce({
+                id: 'webset_fixture',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+                emailModel: '  gpt-4o-mini  ',
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreateFromSavedRun.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+                emailModel: 'gpt-4o-mini',
+            })
+        })
+
+        it('should omit a blank emailModel when rewriting from saved research', async () => {
+            mockCreateFromSavedRun.mockResolvedValueOnce({
+                id: 'webset_fixture',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+                emailModel: '   ',
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreateFromSavedRun.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+            })
+        })
+
+        it('should pass a trimmed emailModel when rewriting from current prospects', async () => {
+            const prospects = [givenProspect()]
+            mockCreateFromProspects.mockResolvedValueOnce({
+                id: 'webset_existing',
+                dashboardUrl: '',
+            })
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                reuseResearch: true,
+                emailModel: 'gpt-4.1',
+                prospects,
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreateFromProspects.mock.calls[0][0]).toEqual({
+                search: 'Find partnership leaders at UK consultancies',
+                brief: givenValidVendorBrief(),
+                emailModel: 'gpt-4.1',
+                prospects,
+                dashboardUrl: '',
+            })
+        })
+
+        it('should include emailModel in live Webset metadata when provided', async () => {
+            givenWebsetCreated()
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                emailModel: 'gpt-4o-mini',
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreate.mock.calls[0][0].metadata).toEqual(
+                websetMetadata(
+                    'Find partnership leaders at UK consultancies',
+                    givenValidVendorBrief(),
+                    'gpt-4o-mini',
+                ),
+            )
+        })
+
+        it('should omit emailModel from live Webset metadata when it is blank', async () => {
+            givenWebsetCreated()
+
+            const actual = await startOutreach({
+                ...givenValidOutreachRequest(),
+                emailModel: '   ',
+            })
+
+            expect(actual.statusCode).toBe(200)
+            expect(mockCreate.mock.calls[0][0].metadata).toEqual(
+                websetMetadata('Find partnership leaders at UK consultancies', givenValidVendorBrief()),
+            )
         })
     })
 })

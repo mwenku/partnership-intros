@@ -302,6 +302,8 @@ export default function Page(): ReactElement {
     const [status, setStatus] = useState<OutreachStatusType | null>(null)
     const [error, setError] = useState('')
     const [running, setRunning] = useState(false)
+    const [reusingResearch, setReusingResearch] = useState(false)
+    const [emailModel, setEmailModel] = useState('')
     const [sequenceTabs, setSequenceTabs] = useState<Record<string, SequenceTab>>({})
     const vendorLogoUrl = logoUrlFromWebsite(brief.website)
 
@@ -309,16 +311,25 @@ export default function Page(): ReactElement {
         setBrief((current) => ({ ...current, [field]: value }))
     }
 
-    async function startRun(): Promise<void> {
+    async function startRun(reuseResearch = false): Promise<void> {
+        const researchProspects = status?.prospects || []
+        const trimmedEmailModel = emailModel.trim()
         setError('')
         setStatus(null)
         setSequenceTabs({})
+        setReusingResearch(reuseResearch)
         setRunning(true)
 
         const response = await fetch('/api/outreach', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ search, brief }),
+            body: JSON.stringify({
+                search,
+                brief,
+                reuseResearch,
+                ...(trimmedEmailModel ? { emailModel: trimmedEmailModel } : {}),
+                ...(reuseResearch && researchProspects.length > 0 ? { prospects: researchProspects } : {}),
+            }),
         })
         const payload = await response.json()
 
@@ -328,6 +339,7 @@ export default function Page(): ReactElement {
             return
         }
 
+        setReusingResearch(reuseResearch || Boolean(payload.data.reusedResearch))
         setWebsetId(payload.data.websetId)
         setDashboardUrl(payload.data.dashboardUrl || '')
     }
@@ -410,6 +422,7 @@ export default function Page(): ReactElement {
         setWebsetId(saved.websetId)
         setDashboardUrl(saved.dashboardUrl || '')
         setRunning(false)
+        setReusingResearch(false)
         setSequenceTabs({})
         setStatus({
             websetId: saved.websetId,
@@ -535,7 +548,7 @@ export default function Page(): ReactElement {
 
                         <div className="actions">
                             <button type="submit" disabled={running}>
-                                {running ? 'Running Websets…' : 'Run outreach research'}
+                                {running && !reusingResearch ? 'Running Websets…' : 'Run outreach research'}
                             </button>
                             <button type="button" className="secondary" onClick={loadExampleRun} disabled={running}>
                                 Load example run
@@ -555,6 +568,28 @@ export default function Page(): ReactElement {
                             ) : null}
                         </div>
                     </form>
+
+                    <details className="rewrite-tools">
+                        <summary>Rewrite emails</summary>
+                        <label>
+                            OpenAI model
+                            <input
+                                value={emailModel}
+                                placeholder="gpt-4.1"
+                                onChange={(event) => setEmailModel(event.target.value)}
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            className="secondary"
+                            disabled={running}
+                            onClick={() => {
+                                startRun(true)
+                            }}
+                        >
+                            {running && reusingResearch ? 'Rewriting emails…' : 'Rewrite emails'}
+                        </button>
+                    </details>
                 </section>
 
                 <section className="results-panel">
@@ -562,7 +597,7 @@ export default function Page(): ReactElement {
                     {running || status ? (
                         <p className={`status${running ? ' running' : ''}`} aria-live="polite">
                             {running ? <span className="status-dot" aria-hidden="true" /> : null}
-                            {phaseCopy[status?.phase || 'discovering']}
+                            {phaseCopy[status?.phase || (reusingResearch ? 'writing-v1' : 'discovering')]}
                             {status ? ` · ${status.itemCount} found` : ''}
                         </p>
                     ) : (

@@ -1,4 +1,8 @@
-import { applyEmailJudgementPatches, explainEmailImprovement, judgeEmailsAgainstContext } from '../../../../src/utils/emailJudgement'
+import {
+    applyEmailJudgementPatches,
+    explainEmailImprovement,
+    judgeEmailsAgainstContext,
+} from '../../../../src/utils/emailJudgement'
 import { SourceType, VendorBriefType } from '../../../../src/zod-schemas'
 
 function givenVendorBrief(overrides: Partial<VendorBriefType> = {}): VendorBriefType {
@@ -44,32 +48,21 @@ function givenSources(): SourceType[] {
 
 function givenReadyEmails(): string[] {
     return [
-        `Subject: Partner motion with Harborline for Example Consulting
+        `Subject: Example Consulting and private AI partnership
 Hi Jane,
-I'd like to introduce a partnership with Harborline. Harborline offers a private AI runtime, and we recruit UK implementation partners.
-Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
-Partners gain implementation revenue with regulated UK companies.
-Would a 15-minute call be useful to explore fit?
+I'm reaching out as you lead partner recruitment at Example Consulting, where your team implements private AI for banks. Harborline equips partners to offer a private AI runtime. Are you free for a chat?
 Harborline`,
-        `Subject: Why Example Consulting maps to Harborline
+        `Subject: Example Consulting public write-up
 Hi Jane,
-The public proof point is https://example.com/guide.
-That private-AI implementation guide for insurers is why a Harborline partnership fits Example Consulting.
-The gain for you is implementation revenue.
-Would you like to discuss this on a short call?
+I noticed this public Example Consulting write-up: https://example.com/guide. Harborline equips partners to offer a private AI runtime around that implementation guide for insurers. Are you free for a chat?
 Harborline`,
-        `Subject: What a Harborline partner actually does
+        `Subject: Example Consulting delivery
 Hi Jane,
-The partner contributes introductions and delivery. The gain is implementation revenue for regulated UK companies.
-That maps to the same motion in https://example.com/guide.
-Would it be worth a conversation to review the first 90 days?
+I noticed another private-AI note in https://example.com/guide around introductions. Harborline equips partners to offer a private AI runtime on that delivery work. Are you available for a chat?
 Harborline`,
-        `Subject: Should we explore a Harborline partnership?
+        `Subject: Example Consulting chat
 Hi Jane,
-Last useful note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
-The gain for you is implementation revenue.
-If this is not a priority, a no is fine.
-Would you prefer a 15-minute call, or should we close this out?
+I noticed one last note from https://example.com/guide: this still looks like a credible path for Example Consulting. Harborline equips partners to offer a private AI runtime. If this is not a priority, a no is fine. Are you free for a chat?
 Harborline`,
     ]
 }
@@ -90,48 +83,100 @@ describe('judgeEmailsAgainstContext unit tests', () => {
                 'Email 1: Uses the actual vendor opportunity context',
                 'Email 1: Explains why the company and person appear relevant',
                 'Email 1: References the researched partnership opportunity',
-                'Email 1: States what the partner gains from this partnership',
-                'Email 1: Contains a concrete partner next step',
+                'Email 1: Opens with a short intro',
+                'Email 1: States a partner value proposition',
+                'Email 1: Stays to 3 or 4 sentences',
+                'Email 1: Asks if they are free for a chat',
                 'Email 2: Uses the actual vendor opportunity context',
                 'Email 2: Targets the real recipient or company',
                 'Email 2: References the researched partnership opportunity',
                 'Email 2: Grounded in cited research evidence for this prospect',
-                'Email 2: States what the partner gains from this partnership',
+                'Email 2: Opens with a short intro',
+                'Email 2: States a partner value proposition',
+                'Email 2: Stays to 3 or 4 sentences',
                 'Email 2: Adds useful new information versus previous emails',
-                'Email 2: Contains a concrete partner next step',
+                'Email 2: Asks if they are free for a chat',
                 'Email 3: Uses the actual vendor opportunity context',
                 'Email 3: Targets the real recipient or company',
                 'Email 3: References the researched partnership opportunity',
                 'Email 3: Grounded in cited research evidence for this prospect',
-                'Email 3: States what the partner gains from this partnership',
+                'Email 3: Opens with a short intro',
+                'Email 3: States a partner value proposition',
+                'Email 3: Stays to 3 or 4 sentences',
                 'Email 3: Adds useful new information versus previous emails',
-                'Email 3: Contains a concrete partner next step',
+                'Email 3: Asks if they are free for a chat',
                 'Email 4: Uses the actual vendor opportunity context',
                 'Email 4: Targets the real recipient or company',
                 'Email 4: References the researched partnership opportunity',
                 'Email 4: Grounded in cited research evidence for this prospect',
-                'Email 4: States what the partner gains from this partnership',
+                'Email 4: Opens with a short intro',
+                'Email 4: States a partner value proposition',
+                'Email 4: Stays to 3 or 4 sentences',
                 'Email 4: Adds useful new information versus previous emails',
-                'Email 4: Contains a concrete partner next step',
+                'Email 4: Asks if they are free for a chat',
                 'Email 4: Ends with a respectful low-friction close',
             ])
         })
 
+        it('should fail emails that open with You can', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+You can expand Example Consulting's offering.
+I'm reaching out because Jane leads partner recruitment for regulated delivery.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+Harborline`
+
+            const actual = judgeEmailsAgainstContext(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual.overallVerdict).toEqual('revise')
+            expect(actual.gaps).toEqual(['Email 1: Avoids repeating You can as the email opener'])
+        })
+
+        it('should fail a By partnering with you-can opener', () => {
+            const emails = givenReadyEmails()
+            emails[1] = `Subject: Example Consulting public write-up
+Hi Jane,
+By partnering with Harborline, you can offer Example Consulting a private AI runtime.
+I'm reaching out about this public Example Consulting write-up: https://example.com/guide
+Harborline's private AI runtime gives partners implementation revenue around that private-AI implementation guide for insurers.
+Are you free for a short call?
+Harborline`
+
+            const actual = judgeEmailsAgainstContext(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual.overallVerdict).toEqual('revise')
+            expect(actual.gaps).toEqual(['Email 2: Avoids repeating You can as the email opener'])
+        })
+
         it('should fail a generic follow-up and a Souk mention', () => {
             const emails = givenReadyEmails()
-            emails[0] = `Subject: Partner motion with Harborline for Example Consulting
+            emails[0] = `Subject: Harborline and Example Consulting
 Hi Jane,
-I'm writing from Souk on behalf of Harborline. Harborline offers a private AI runtime, and we recruit UK implementation partners.
-Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
-Partners gain implementation revenue with regulated UK companies.
-Would a 15-minute call be useful to explore fit?
-Souk, on behalf of Harborline`
+I'm writing from Souk.
+I'm reaching out because Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+Harborline`
             emails[1] = `Subject: Checking in
 Hi Jane,
 Just checking in on Harborline for Example Consulting.
-The gain for you is implementation revenue.
-https://example.com/guide
-Would a call help?
+I'm reaching out about this public Example Consulting write-up: https://example.com/guide
+Harborline's private AI runtime gives partners implementation revenue around that private-AI implementation guide for insurers.
+Are you free for a short call?
 Harborline`
 
             const actual = judgeEmailsAgainstContext(
@@ -151,12 +196,11 @@ Harborline`
 
         it('should fail email 1 if the company is mentioned without the person', () => {
             const emails = givenReadyEmails()
-            emails[0] = `Subject: Partner motion with Harborline for Example Consulting
+            emails[0] = `Subject: Harborline and Example Consulting
 Hi there,
-I'd like to introduce a partnership with Harborline. Harborline offers a private AI runtime.
-Example Consulting implements private AI for banks.
-Partners gain implementation revenue with regulated UK companies.
-Would a 15-minute call be useful to explore fit?
+I'm reaching out because Example Consulting implements private AI for banks.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
 Harborline`
 
             const actual = judgeEmailsAgainstContext(
@@ -192,10 +236,11 @@ Harborline`
 
         it('should fail email 4 if the close is not easy to decline', () => {
             const emails = givenReadyEmails()
-            emails[3] = `Subject: Should we explore a Harborline partnership?
+            emails[3] = `Subject: Example Consulting chat
 Hi Jane,
-Last useful note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
-Would you prefer a 15-minute call?
+I'm reaching out with one last note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
+Harborline's private AI runtime gives partners implementation revenue if you want to take this further.
+Are you free for a 15-minute call?
 Harborline`
 
             const actual = judgeEmailsAgainstContext(
@@ -212,11 +257,12 @@ Harborline`
 
         it("should accept if this isn't as an easy decline", () => {
             const emails = givenReadyEmails()
-            emails[3] = `Subject: Should we explore a Harborline partnership?
+            emails[3] = `Subject: Example Consulting chat
 Hi Jane,
-Last useful note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
+I'm reaching out with one last note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
+Harborline's private AI runtime gives partners implementation revenue if you want to take this further.
 If this isn't relevant, please say so.
-Would you prefer a 15-minute call, or should we close this out?
+Are you free for a 15-minute call, or should we close this out?
 Harborline`
 
             const actual = judgeEmailsAgainstContext(
@@ -233,8 +279,10 @@ Harborline`
 
         it('should fail unrelated personal facts that do not explain fit', () => {
             const emails = givenReadyEmails()
-            emails[0] = `${emails[0]}
-Congrats on the university hobby.`
+            emails[0] = emails[0].replace(
+                'Are you free for a chat?\nHarborline',
+                'Are you free for a chat?\nCongrats on the university hobby.\nHarborline',
+            )
 
             const actual = judgeEmailsAgainstContext(
                 emails,
@@ -245,18 +293,16 @@ Congrats on the university hobby.`
             )
 
             expect(actual.overallVerdict).toEqual('revise')
-            expect(actual.gaps).toEqual([
-                'Email 1: Personalisation explains fit rather than unrelated personal facts',
-            ])
+            expect(actual.gaps).toEqual(['Email 1: Personalisation explains fit rather than unrelated personal facts'])
         })
 
-        it('should fail email 1 if partner value is missing', () => {
+        it('should fail email 1 if the intro is missing', () => {
             const emails = givenReadyEmails()
-            emails[0] = `Subject: Partner motion with Harborline for Example Consulting
+            emails[0] = `Subject: Harborline and Example Consulting
 Hi Jane,
-I'd like to introduce a partnership with Harborline. Harborline offers a private AI runtime.
 Example Consulting implements private AI for banks, and Jane leads partner recruitment.
-Would a 15-minute call be useful to explore fit?
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
 Harborline`
 
             const actual = judgeEmailsAgainstContext(
@@ -268,7 +314,51 @@ Harborline`
             )
 
             expect(actual.overallVerdict).toEqual('revise')
-            expect(actual.gaps).toEqual(['Email 1: States what the partner gains from this partnership'])
+            expect(actual.gaps).toEqual(['Email 1: Opens with a short intro'])
+        })
+
+        it('should fail emails that omit the value proposition', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+I'm reaching out because Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
+I'd like to talk about a Harborline partnership.
+Are you free for a chat?
+Harborline`
+
+            const actual = judgeEmailsAgainstContext(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual.overallVerdict).toEqual('revise')
+            expect(actual.gaps).toEqual(['Email 1: States a partner value proposition'])
+        })
+
+        it('should fail emails longer than 4 sentences', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+I'm reaching out because Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+This is another line about delivery.
+This is a fifth line about banks.
+Are you free for a chat?
+Harborline`
+
+            const actual = judgeEmailsAgainstContext(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual.overallVerdict).toEqual('revise')
+            expect(actual.gaps).toEqual(['Email 1: Stays to 3 or 4 sentences'])
         })
     })
 
@@ -318,10 +408,22 @@ Harborline`
                                 evidence: 'Not required for this email step',
                             },
                             {
-                                id: 'partner-value',
-                                label: 'States what the partner gains from this partnership',
+                                id: 'intro',
+                                label: 'Opens with a short intro',
                                 passed: true,
-                                evidence: 'implementation',
+                                evidence: "i'm reaching out",
+                            },
+                            {
+                                id: 'value-proposition',
+                                label: 'States a partner value proposition',
+                                passed: true,
+                                evidence: 'equips partners + private',
+                            },
+                            {
+                                id: 'concise',
+                                label: 'Stays to 3 or 4 sentences',
+                                passed: true,
+                                evidence: '3 sentences',
                             },
                             {
                                 id: 'new-information',
@@ -331,15 +433,21 @@ Harborline`
                             },
                             {
                                 id: 'clear-next-step',
-                                label: 'Contains a concrete partner next step',
+                                label: 'Asks if they are free for a chat',
                                 passed: true,
-                                evidence: 'call + question',
+                                evidence: 'chat + question',
                             },
                             {
                                 id: 'no-generic-follow-up',
                                 label: 'Avoids generic follow-ups such as just checking in or bumping this',
                                 passed: true,
                                 evidence: 'No generic follow-up phrasing',
+                            },
+                            {
+                                id: 'no-canned-opener',
+                                label: 'Avoids repeating You can as the email opener',
+                                passed: true,
+                                evidence: 'No canned You can opener',
                             },
                             {
                                 id: 'no-souk-mention',
@@ -391,28 +499,46 @@ Harborline`
                                 evidence: 'https://example.com/guide',
                             },
                             {
-                                id: 'partner-value',
-                                label: 'States what the partner gains from this partnership',
+                                id: 'intro',
+                                label: 'Opens with a short intro',
                                 passed: true,
-                                evidence: 'implementation',
+                                evidence: 'i noticed',
+                            },
+                            {
+                                id: 'value-proposition',
+                                label: 'States a partner value proposition',
+                                passed: true,
+                                evidence: 'equips partners + private',
+                            },
+                            {
+                                id: 'concise',
+                                label: 'Stays to 3 or 4 sentences',
+                                passed: true,
+                                evidence: '3 sentences',
                             },
                             {
                                 id: 'new-information',
                                 label: 'Adds useful new information versus previous emails',
                                 passed: true,
-                                evidence: 'public',
+                                evidence: 'noticed',
                             },
                             {
                                 id: 'clear-next-step',
-                                label: 'Contains a concrete partner next step',
+                                label: 'Asks if they are free for a chat',
                                 passed: true,
-                                evidence: 'call + question',
+                                evidence: 'chat + question',
                             },
                             {
                                 id: 'no-generic-follow-up',
                                 label: 'Avoids generic follow-ups such as just checking in or bumping this',
                                 passed: true,
                                 evidence: 'No generic follow-up phrasing',
+                            },
+                            {
+                                id: 'no-canned-opener',
+                                label: 'Avoids repeating You can as the email opener',
+                                passed: true,
+                                evidence: 'No canned You can opener',
                             },
                             {
                                 id: 'no-souk-mention',
@@ -455,7 +581,7 @@ Harborline`
                                 id: 'opportunity-context',
                                 label: 'References the researched partnership opportunity',
                                 passed: true,
-                                evidence: 'implementation',
+                                evidence: 'private',
                             },
                             {
                                 id: 'research-grounding',
@@ -464,28 +590,46 @@ Harborline`
                                 evidence: 'https://example.com/guide',
                             },
                             {
-                                id: 'partner-value',
-                                label: 'States what the partner gains from this partnership',
+                                id: 'intro',
+                                label: 'Opens with a short intro',
                                 passed: true,
-                                evidence: 'implementation',
+                                evidence: 'i noticed',
+                            },
+                            {
+                                id: 'value-proposition',
+                                label: 'States a partner value proposition',
+                                passed: true,
+                                evidence: 'equips partners + private',
+                            },
+                            {
+                                id: 'concise',
+                                label: 'Stays to 3 or 4 sentences',
+                                passed: true,
+                                evidence: '3 sentences',
                             },
                             {
                                 id: 'new-information',
                                 label: 'Adds useful new information versus previous emails',
                                 passed: true,
-                                evidence: 'contributes',
+                                evidence: 'another',
                             },
                             {
                                 id: 'clear-next-step',
-                                label: 'Contains a concrete partner next step',
+                                label: 'Asks if they are free for a chat',
                                 passed: true,
-                                evidence: 'conversation + question',
+                                evidence: 'chat + question',
                             },
                             {
                                 id: 'no-generic-follow-up',
                                 label: 'Avoids generic follow-ups such as just checking in or bumping this',
                                 passed: true,
                                 evidence: 'No generic follow-up phrasing',
+                            },
+                            {
+                                id: 'no-canned-opener',
+                                label: 'Avoids repeating You can as the email opener',
+                                passed: true,
+                                evidence: 'No canned You can opener',
                             },
                             {
                                 id: 'no-souk-mention',
@@ -528,7 +672,7 @@ Harborline`
                                 id: 'opportunity-context',
                                 label: 'References the researched partnership opportunity',
                                 passed: true,
-                                evidence: 'guide',
+                                evidence: 'private',
                             },
                             {
                                 id: 'research-grounding',
@@ -537,10 +681,22 @@ Harborline`
                                 evidence: 'https://example.com/guide',
                             },
                             {
-                                id: 'partner-value',
-                                label: 'States what the partner gains from this partnership',
+                                id: 'intro',
+                                label: 'Opens with a short intro',
                                 passed: true,
-                                evidence: 'implementation',
+                                evidence: 'i noticed',
+                            },
+                            {
+                                id: 'value-proposition',
+                                label: 'States a partner value proposition',
+                                passed: true,
+                                evidence: 'equips partners + private',
+                            },
+                            {
+                                id: 'concise',
+                                label: 'Stays to 3 or 4 sentences',
+                                passed: true,
+                                evidence: '4 sentences',
                             },
                             {
                                 id: 'new-information',
@@ -550,15 +706,21 @@ Harborline`
                             },
                             {
                                 id: 'clear-next-step',
-                                label: 'Contains a concrete partner next step',
+                                label: 'Asks if they are free for a chat',
                                 passed: true,
-                                evidence: 'call + question',
+                                evidence: 'chat + question',
                             },
                             {
                                 id: 'no-generic-follow-up',
                                 label: 'Avoids generic follow-ups such as just checking in or bumping this',
                                 passed: true,
                                 evidence: 'No generic follow-up phrasing',
+                            },
+                            {
+                                id: 'no-canned-opener',
+                                label: 'Avoids repeating You can as the email opener',
+                                passed: true,
+                                evidence: 'No canned You can opener',
                             },
                             {
                                 id: 'no-souk-mention',
@@ -605,10 +767,11 @@ Harborline`
 
         it('should patch a missing source url into email 3', () => {
             const emails = givenReadyEmails()
-            emails[2] = `Subject: What a Harborline partner actually does
+            emails[2] = `Subject: Example Consulting delivery
 Hi Jane,
-The partner contributes introductions and delivery. The gain is implementation revenue for regulated UK companies.
-Would it be worth a conversation to review the first 90 days?
+I'm reaching out about another private-AI note around introductions.
+Harborline's private AI runtime gives partners implementation revenue on that delivery work.
+Are you free for a conversation?
 Harborline`
 
             const actual = applyEmailJudgementPatches(
@@ -619,10 +782,11 @@ Harborline`
                 givenSources(),
             )
 
-            expect(actual[2]).toEqual(`Subject: What a Harborline partner actually does
+            expect(actual[2]).toEqual(`Subject: Example Consulting delivery
 Hi Jane,
-The partner contributes introductions and delivery. The gain is implementation revenue for regulated UK companies.
-Would it be worth a conversation to review the first 90 days?
+I'm reaching out about another private-AI note around introductions.
+Harborline's private AI runtime gives partners implementation revenue on that delivery work.
+Are you free for a conversation?
 https://example.com/guide
 Harborline`)
             expect(
@@ -638,10 +802,11 @@ Harborline`)
 
         it('should not invent a source url when none exist', () => {
             const emails = givenReadyEmails()
-            emails[2] = `Subject: What a Harborline partner actually does
+            emails[2] = `Subject: Example Consulting delivery
 Hi Jane,
-The partner contributes introductions and delivery. The gain is implementation revenue for regulated UK companies.
-Would it be worth a conversation to review the first 90 days?
+I'm reaching out about another private-AI note around introductions.
+Harborline's private AI runtime gives partners implementation revenue on that delivery work.
+Are you free for a conversation?
 Harborline`
 
             const actual = applyEmailJudgementPatches(
@@ -654,13 +819,7 @@ Harborline`
 
             expect(actual[2]).toEqual(emails[2])
             expect(
-                judgeEmailsAgainstContext(
-                    actual,
-                    givenVendorBrief(),
-                    givenRecipient(),
-                    givenOpportunity(),
-                    [],
-                ).gaps,
+                judgeEmailsAgainstContext(actual, givenVendorBrief(), givenRecipient(), givenOpportunity(), []).gaps,
             ).toEqual([
                 'Email 2: Grounded in cited research evidence for this prospect',
                 'Email 3: Grounded in cited research evidence for this prospect',
@@ -670,11 +829,11 @@ Harborline`
 
         it('should patch an easy decline into email 4', () => {
             const emails = givenReadyEmails()
-            emails[3] = `Subject: Should we explore a Harborline partnership?
+            emails[3] = `Subject: Example Consulting chat
 Hi Jane,
-Last useful note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
-The gain for you is implementation revenue.
-Would you prefer a 15-minute call?
+I'm reaching out with one last note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
+Harborline's private AI runtime gives partners implementation revenue if you want to take this further.
+Are you free for a 15-minute call?
 Harborline`
 
             const actual = applyEmailJudgementPatches(
@@ -685,11 +844,11 @@ Harborline`
                 givenSources(),
             )
 
-            expect(actual[3]).toEqual(`Subject: Should we explore a Harborline partnership?
+            expect(actual[3]).toEqual(`Subject: Example Consulting chat
 Hi Jane,
-Last useful note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
-The gain for you is implementation revenue.
-Would you prefer a 15-minute call?
+I'm reaching out with one last note from https://example.com/guide: this still looks like a credible path for Example Consulting and Harborline.
+Harborline's private AI runtime gives partners implementation revenue if you want to take this further.
+Are you free for a 15-minute call?
 If this is not a priority, a no is completely fine.
 Harborline`)
         })
@@ -706,6 +865,85 @@ Harborline`)
                     givenSources(),
                 ),
             ).toEqual(emails)
+        })
+
+        it('should rewrite a You can opener', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+You can expand Example Consulting's offering.
+I'm reaching out because Jane leads partner recruitment for regulated delivery.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+Harborline`
+
+            const actual = applyEmailJudgementPatches(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual[0]).toEqual(`Subject: Harborline and Example Consulting
+Hi Jane,
+Expand Example Consulting's offering.
+I'm reaching out because Jane leads partner recruitment for regulated delivery.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+Harborline`)
+        })
+
+        it('should patch a missing intro', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+Example Consulting implements private AI for banks, and Jane leads partner recruitment.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+Harborline`
+
+            const actual = applyEmailJudgementPatches(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual[0]).toEqual(`Subject: Harborline and Example Consulting
+Hi Jane,
+Example Consulting implements private AI for banks, and Jane leads partner recruitment.
+Harborline's private AI runtime gives partners implementation revenue on that work.
+Are you free for a chat?
+I'm reaching out as you lead Head of Partnerships at Example Consulting.
+Harborline`)
+        })
+
+        it('should patch a missing value proposition', () => {
+            const emails = givenReadyEmails()
+            emails[0] = `Subject: Harborline and Example Consulting
+Hi Jane,
+I'm reaching out because Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
+I'd like to talk about a Harborline partnership.
+Are you free for a chat?
+Harborline`
+
+            const actual = applyEmailJudgementPatches(
+                emails,
+                givenVendorBrief(),
+                givenRecipient(),
+                givenOpportunity(),
+                givenSources(),
+            )
+
+            expect(actual[0]).toEqual(`Subject: Harborline and Example Consulting
+Hi Jane,
+I'm reaching out because Example Consulting implements private AI for banks, and Jane leads partner recruitment for regulated delivery.
+I'd like to talk about a Harborline partnership.
+Are you free for a chat?
+Harborline equips partners to offer Private AI runtime.
+Harborline`)
         })
     })
 })
@@ -725,9 +963,11 @@ describe('explainEmailImprovement unit tests', () => {
             expect(explainEmailImprovement(empty, empty, recipient, givenOpportunity(), givenSources())).toEqual({
                 problemSource: 'discovery',
                 problemSourceWhy: 'Discovery did not return a usable recipient. Name: missing. Company: missing.',
-                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
-                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
-                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                weakInFirst:
+                    'The first snapshot did not use enough of the actual vendor, recipient, opportunity, or sourced research.',
+                whatChanged: 'The rewrite did not fix the first-snapshot gaps.',
+                howImproved:
+                    'The final snapshot is still missing some vendor, recipient, opportunity, or sourced research.',
                 fixedGaps: [],
                 remainingGaps: empty.gaps,
             })
@@ -735,15 +975,23 @@ describe('explainEmailImprovement unit tests', () => {
 
         it('should classify missing fit research as an enrichment problem', () => {
             const opportunity = { companyFit: '', personFit: '', selectedSignal: '' }
-            const empty = judgeEmailsAgainstContext(['', '', '', ''], givenVendorBrief(), givenRecipient(), opportunity, [])
+            const empty = judgeEmailsAgainstContext(
+                ['', '', '', ''],
+                givenVendorBrief(),
+                givenRecipient(),
+                opportunity,
+                [],
+            )
 
             expect(explainEmailImprovement(empty, empty, givenRecipient(), opportunity, [])).toEqual({
                 problemSource: 'enrichment',
                 problemSourceWhy:
                     'Enrichment did not return enough research to ground the emails. Company fit: missing. Person fit: missing. Sources: 0.',
-                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
-                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
-                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                weakInFirst:
+                    'The first snapshot did not use enough of the actual vendor, recipient, opportunity, or sourced research.',
+                whatChanged: 'The rewrite did not fix the first-snapshot gaps.',
+                howImproved:
+                    'The final snapshot is still missing some vendor, recipient, opportunity, or sourced research.',
                 fixedGaps: [],
                 remainingGaps: empty.gaps,
             })
@@ -765,10 +1013,13 @@ describe('explainEmailImprovement unit tests', () => {
 
             expect(explainEmailImprovement(empty, empty, givenRecipient(), opportunity, givenSources())).toEqual({
                 problemSource: 'signal-selection',
-                problemSourceWhy: 'Signal selection did not produce a usable partnership signal. Selected signal: missing.',
-                weakInFirst: `The first snapshot failed ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
-                whatChanged: `The rewrite did not fix the first-snapshot gaps: ${empty.gaps.join('; ')}.`,
-                howImproved: `The final snapshot still fails ${empty.gaps.length} context checks: ${empty.gaps.join('; ')}.`,
+                problemSourceWhy:
+                    'Signal selection did not produce a usable partnership signal. Selected signal: missing.',
+                weakInFirst:
+                    'The first snapshot did not use enough of the actual vendor, recipient, opportunity, or sourced research.',
+                whatChanged: 'The rewrite did not fix the first-snapshot gaps.',
+                howImproved:
+                    'The final snapshot is still missing some vendor, recipient, opportunity, or sourced research.',
                 fixedGaps: [],
                 remainingGaps: empty.gaps,
             })
@@ -779,8 +1030,8 @@ describe('explainEmailImprovement unit tests', () => {
         it('should treat a Souk mention as a writing problem that the rewrite fixed', () => {
             const firstEmails = givenReadyEmails()
             firstEmails[0] = firstEmails[0].replace(
-                "I'd like to introduce a partnership with Harborline.",
-                "I'm writing from Souk to introduce a partnership with Harborline.",
+                "I'm reaching out as you lead partner recruitment at Example Consulting",
+                "I'm reaching out from Souk as you lead partner recruitment at Example Consulting",
             )
             const first = judgeEmailsAgainstContext(
                 firstEmails,
@@ -798,17 +1049,20 @@ describe('explainEmailImprovement unit tests', () => {
             )
 
             expect(first.gaps).toEqual(['Email 1: Does not mention Souk'])
-            expect(explainEmailImprovement(first, final, givenRecipient(), givenOpportunity(), givenSources())).toEqual({
-                problemSource: 'writing',
-                problemSourceWhy:
-                    'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
-                weakInFirst: 'The first snapshot failed 1 context check: Email 1: Does not mention Souk.',
-                whatChanged: 'The rewrite fixed: Email 1: Does not mention Souk.',
-                howImproved:
-                    'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research. Newly passing checks: Email 1: Does not mention Souk.',
-                fixedGaps: ['Email 1: Does not mention Souk'],
-                remainingGaps: [],
-            })
+            expect(explainEmailImprovement(first, final, givenRecipient(), givenOpportunity(), givenSources())).toEqual(
+                {
+                    problemSource: 'writing',
+                    problemSourceWhy:
+                        'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
+                    weakInFirst:
+                        'The first snapshot did not use enough of the actual vendor, recipient, opportunity, or sourced research.',
+                    whatChanged: 'The rewrite used more of the vendor, recipient, opportunity, and sourced research.',
+                    howImproved:
+                        'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.',
+                    fixedGaps: ['Email 1: Does not mention Souk'],
+                    remainingGaps: [],
+                },
+            )
         })
 
         it('should keep the same grounded checks if first and final already pass', () => {
@@ -820,18 +1074,20 @@ describe('explainEmailImprovement unit tests', () => {
                 givenSources(),
             )
 
-            expect(explainEmailImprovement(ready, ready, givenRecipient(), givenOpportunity(), givenSources())).toEqual({
-                problemSource: 'writing',
-                problemSourceWhy:
-                    'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
-                weakInFirst:
-                    'The first snapshot already used the actual vendor, recipient, opportunity, and sourced research.',
-                whatChanged: 'The rewrite kept the same grounded checks. No failed context checks were added or removed.',
-                howImproved:
-                    'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.',
-                fixedGaps: [],
-                remainingGaps: [],
-            })
+            expect(explainEmailImprovement(ready, ready, givenRecipient(), givenOpportunity(), givenSources())).toEqual(
+                {
+                    problemSource: 'writing',
+                    problemSourceWhy:
+                        'Discovery had Jane Partner at Example Consulting. Enrichment returned 1 source. Signal selection had a selected signal. The remaining gaps were in the email writing, not in finding or researching the prospect.',
+                    weakInFirst:
+                        'The first snapshot already used the actual vendor, recipient, opportunity, and sourced research.',
+                    whatChanged: 'The rewrite kept the same grounded checks.',
+                    howImproved:
+                        'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.',
+                    fixedGaps: [],
+                    remainingGaps: [],
+                },
+            )
         })
     })
 })

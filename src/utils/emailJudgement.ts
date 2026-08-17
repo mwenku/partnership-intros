@@ -161,41 +161,93 @@ function soukMentionMatch(emailText: string): string {
     return ''
 }
 
-function partnerGainMatch(emailText: string, brief: VendorBriefType): string {
-    const gainTokens = uniqueTokens(brief.partnerGains)
-    if (gainTokens.length === 0) {
-        logger.info('partner gain fields empty')
-        return ''
-    }
-
-    const gainToken = firstMatchedToken(emailText, gainTokens)
-    if (!gainToken) {
-        logger.info('partner gain token missing from email')
-        return ''
-    }
-
+function introMatch(emailText: string): string {
     const loweredEmail = normalized(emailText)
-    const youGainCues = [
-        'you gain',
-        'you would gain',
-        'for you',
-        'your clients',
-        'your accounts',
-        'your existing',
-        'the return',
-        'you get',
-        'partners gain',
+    const cues = [
+        "i'm reaching out",
+        'i am reaching out',
+        'reaching out',
+        'i noticed',
+        'i saw',
+        'came across',
+        'i wanted to introduce',
+        "i'm writing",
     ]
-    const cue = youGainCues.find((phrase) => loweredEmail.includes(phrase))
-    if (cue) {
-        return gainToken
+    const matched = cues.find((phrase) => loweredEmail.includes(phrase))
+    if (matched) {
+        return matched
     }
 
-    if (loweredEmail.includes('gain') || loweredEmail.includes('return')) {
-        return gainToken
+    logger.info('intro missing from email')
+    return ''
+}
+
+function valuePropositionMatch(emailText: string, brief: VendorBriefType): string {
+    const loweredEmail = normalized(emailText)
+    const cues = ['equips partners', 'enables partners', 'gives partners']
+    const cue = cues.find((phrase) => loweredEmail.includes(phrase))
+    if (!cue) {
+        logger.info('value proposition cue missing from email')
+        return ''
     }
 
-    logger.info('partner gain token present without gain language', { gainToken })
+    const valueTokens = uniqueTokens([brief.offer, brief.partnerGains].join(' '))
+    const matched = firstMatchedToken(emailText, valueTokens)
+    if (!matched) {
+        logger.info('value proposition offer missing from email')
+        return ''
+    }
+
+    return `${cue} + ${matched}`
+}
+
+function emailBodyLines(emailText: string): string[] {
+    const lines = emailText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    const bodyLines: string[] = []
+
+    for (const line of lines) {
+        const lowered = line.toLowerCase()
+        if (lowered.startsWith('subject:')) {
+            continue
+        }
+
+        if (/^hi\b/.test(lowered) && line.length < 48) {
+            continue
+        }
+
+        bodyLines.push(line)
+    }
+
+    if (bodyLines.length === 0) {
+        return bodyLines
+    }
+
+    const last = bodyLines[bodyLines.length - 1]
+    if (!last.includes('?') && last.split(/\s+/).length <= 4) {
+        bodyLines.pop()
+    }
+
+    return bodyLines
+}
+
+function emailSentences(emailText: string): string[] {
+    return emailBodyLines(emailText)
+        .join(' ')
+        .split(/[.!?]+/)
+        .map((sentence) => sentence.trim())
+        .filter((sentence) => sentence.length > 0)
+}
+
+function conciseMatch(emailText: string): string {
+    const count = emailSentences(emailText).length
+    if (count >= 3 && count <= 4) {
+        return `${count} sentences`
+    }
+
+    logger.info('email is not 3 or 4 sentences', { count })
     return ''
 }
 
@@ -278,6 +330,47 @@ function unrelatedPersonalMatch(
     return matched || ''
 }
 
+function cannedOpenerMatch(emailText: string): string {
+    const lines = emailText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    const bodyLines: string[] = []
+
+    for (const line of lines) {
+        const lowered = line.toLowerCase()
+        if (lowered.startsWith('subject:')) {
+            continue
+        }
+
+        if (/^hi\b/.test(lowered) && line.length < 48) {
+            continue
+        }
+
+        bodyLines.push(line)
+    }
+
+    const sentences = bodyLines
+        .join(' ')
+        .split(/[.!?\n]+/)
+        .map((sentence) => sentence.trim().toLowerCase())
+        .filter((sentence) => sentence.length > 0)
+
+    for (const sentence of sentences) {
+        if (/^you can\b/.test(sentence) || /, you can\b/.test(sentence)) {
+            logger.info('canned you-can opener found in email')
+            return 'you can'
+        }
+
+        if (/^you could\b/.test(sentence) || /, you could\b/.test(sentence)) {
+            logger.info('canned you-could opener found in email')
+            return 'you could'
+        }
+    }
+
+    return ''
+}
+
 function check(id: string, label: string, passed: boolean, evidence: string): EmailJudgementCheckType {
     return {
         id,
@@ -311,10 +404,13 @@ function emailChecks(
     const nextStepEvidence = partnerAskMatch(emailText)
     const genericFollowUp = genericFollowUpMatch(emailText)
     const soukMention = soukMentionMatch(emailText)
-    const partnerGainEvidence = partnerGainMatch(emailText, brief)
+    const intro = introMatch(emailText)
+    const valueProposition = valuePropositionMatch(emailText, brief)
+    const concise = conciseMatch(emailText)
     const newInformationEvidence = followUpNewInformation(emailText, previousEmails, brief, recipient)
     const easyDeclineEvidence = easyDeclineMatch(emailText)
     const unrelatedPersonal = unrelatedPersonalMatch(emailText, brief, recipient, opportunity, sources)
+    const cannedOpener = cannedOpenerMatch(emailText)
     const mustIncludeResearch = emailNumber >= 2
     const mustIncludeCompanyAndPerson = emailNumber === 1
     const mustIncludeNewInformation = emailNumber >= 2
@@ -344,24 +440,37 @@ function emailChecks(
             mustIncludeResearch ? Boolean(researchEvidence) : true,
             mustIncludeResearch ? researchEvidence : 'Not required for this email step',
         ),
+        check('intro', 'Opens with a short intro', Boolean(intro), intro),
         check(
-            'partner-value',
-            'States what the partner gains from this partnership',
-            Boolean(partnerGainEvidence),
-            partnerGainEvidence,
+            'value-proposition',
+            'States a partner value proposition',
+            Boolean(valueProposition),
+            valueProposition,
         ),
+        check('concise', 'Stays to 3 or 4 sentences', Boolean(concise), concise),
         check(
             'new-information',
             'Adds useful new information versus previous emails',
             mustIncludeNewInformation ? Boolean(newInformationEvidence) : true,
             mustIncludeNewInformation ? newInformationEvidence : 'Not required for this email step',
         ),
-        check('clear-next-step', 'Contains a concrete partner next step', Boolean(nextStepEvidence), nextStepEvidence),
+        check(
+            'clear-next-step',
+            'Asks if they are free for a chat',
+            Boolean(nextStepEvidence),
+            nextStepEvidence,
+        ),
         check(
             'no-generic-follow-up',
             'Avoids generic follow-ups such as just checking in or bumping this',
             !genericFollowUp,
             genericFollowUp ? genericFollowUp : 'No generic follow-up phrasing',
+        ),
+        check(
+            'no-canned-opener',
+            'Avoids repeating You can as the email opener',
+            !cannedOpener,
+            cannedOpener ? cannedOpener : 'No canned You can opener',
         ),
         check(
             'no-souk-mention',
@@ -542,6 +651,22 @@ function explainEmailImprovement(
     }
 }
 
+function rewriteCannedOpeners(email: string): string {
+    return email
+        .split('\n')
+        .map((line) => {
+            let next = line.replace(/^(You can |You could )/i, '')
+            next = next.replace(/^By partnering with [^,]+, you can /i, '')
+            if (next === line || next.length === 0) {
+                return line
+            }
+
+            logger.info('rewriting canned you-can opener')
+            return next.charAt(0).toUpperCase() + next.slice(1)
+        })
+        .join('\n')
+}
+
 function insertLineBeforeSignOff(email: string, line: string): string {
     if (!line || normalized(email).includes(normalized(line))) {
         return email
@@ -590,18 +715,36 @@ function applyEmailJudgementPatches(
             }
         }
 
-        if (failedIds.has('partner-value')) {
-            const gain = brief.partnerGains.split(',')[0]?.trim() || brief.partnerGains
-            if (gain) {
-                logger.info('patching missing partner gain', { emailNumber: index + 1 })
-                next = insertLineBeforeSignOff(next, `The gain for you is ${gain}.`)
+        if (failedIds.has('intro')) {
+            const introLine =
+                recipient.position && recipient.companyName
+                    ? `I'm reaching out as you lead ${recipient.position} at ${recipient.companyName}.`
+                    : opportunity.selectedSignal || opportunity.companyFit || recipient.companyName
+                      ? `I'm reaching out as you lead work at ${opportunity.selectedSignal || opportunity.companyFit || recipient.companyName}.`
+                      : ''
+            if (introLine) {
+                logger.info('patching missing intro', { emailNumber: index + 1 })
+                next = insertLineBeforeSignOff(next, introLine)
             } else {
-                logger.info('partner gain missing and brief has no gain to patch', { emailNumber: index + 1 })
+                logger.info('intro missing and no fact to patch', { emailNumber: index + 1 })
             }
+        }
+
+        if (failedIds.has('value-proposition')) {
+            logger.info('patching missing value proposition', { emailNumber: index + 1 })
+            next = insertLineBeforeSignOff(
+                next,
+                `${brief.vendorName} equips partners to offer ${brief.offer}.`,
+            )
         }
 
         if (failedIds.has('low-friction-close')) {
             next = insertLineBeforeSignOff(next, 'If this is not a priority, a no is completely fine.')
+        }
+
+        if (failedIds.has('no-canned-opener')) {
+            logger.info('patching canned you-can opener', { emailNumber: index + 1 })
+            next = rewriteCannedOpeners(next)
         }
 
         return next

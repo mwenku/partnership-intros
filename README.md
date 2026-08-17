@@ -15,7 +15,9 @@ Fill in the keys in `.env` (see `.env.example`), then:
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). A run usually takes several minutes. Leave the tab open.
+Open [http://localhost:3000](http://localhost:3000). A full research run usually takes several minutes. Leave the tab open.
+
+To rewrite copy without waiting on Websets, open **Rewrite emails**, optionally type an OpenAI model, and run it. That reuses the current run's research if people are on screen, otherwise `examples/example_output.json`.
 
 ## How it works
 
@@ -31,7 +33,7 @@ This does **not** use Tavily extract/crawl for discovery; it starts from Tavily 
 
 - **Tavily search** for people discovery context and source grounding.
 - **Provider switch** via `WEBSET_PROVIDER=tavily|exa` without handler changes.
-- **OpenAI model** for four-email sequence generation. Tavily and Exa do not write copy.
+- **OpenAI model** for four-email sequence generation. Defaults to `OPENAI_EMAIL_MODEL` or `gpt-4.1`. The rewrite panel can override the model per run so you can compare outputs. Tavily and Exa do not write copy.
 
 ## Code layout
 
@@ -53,7 +55,7 @@ pnpm test:unit
 
 ## Saved example
 
-After a successful run, use **Download run JSON** and save it as `examples/run.json`. Copy one prospect's first vs final emails into `examples/refinement.md` and note what changed.
+`examples/example_output.json` is the saved research fixture. **Rewrite emails** reuses the current people when a run is loaded, otherwise that fixture, and only regenerates sequences. After a live run, **Download this run JSON** can replace that fixture. Copy one prospect's first vs final emails into `examples/refinement.md` and note what changed.
 
 ## Submission notes
 

@@ -12,11 +12,6 @@ export const VendorBrief = z.object({
     constraints: z.string().min(1),
 })
 
-export const OutreachRequest = z.object({
-    search: z.string().min(1),
-    brief: VendorBrief,
-})
-
 export const Source = z.object({
     title: z.string(),
     snippet: z.string(),
@@ -90,6 +85,14 @@ export const Prospect = z.object({
     emailImprovement: EmailImprovement,
 })
 
+export const OutreachRequest = z.object({
+    search: z.string().min(1),
+    brief: VendorBrief,
+    reuseResearch: z.boolean().optional(),
+    emailModel: z.string().optional(),
+    prospects: z.array(Prospect).optional(),
+})
+
 export const OutreachPhase = z.enum(['discovering', 'researching', 'writing-v1', 'writing-v2', 'done'])
 
 export const OutreachStatus = z.object({
@@ -105,6 +108,7 @@ export const OutreachStatus = z.object({
 export const StartOutreachResponse = z.object({
     websetId: z.string(),
     dashboardUrl: z.string(),
+    reusedResearch: z.boolean().optional(),
 })
 
 export type VendorBriefType = z.infer<typeof VendorBrief>
