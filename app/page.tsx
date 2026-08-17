@@ -3,7 +3,7 @@
 import { FormEvent, ReactElement, SyntheticEvent, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { EmailJudgementType, OutreachStatusType, ProspectType, VendorBriefType } from '../src/zod-schemas'
+import { OutreachStatusType, ProspectType, VendorBriefType } from '../src/zod-schemas'
 import { TagListInput } from './TagListInput'
 
 const defaultBrief: VendorBriefType = {
@@ -30,6 +30,14 @@ const phaseCopy: Record<OutreachStatusType['phase'], string> = {
 }
 
 type SequenceTab = 'first' | 'final' | 'improved'
+
+type SavedRun = {
+    search: string
+    brief: VendorBriefType
+    websetId: string
+    dashboardUrl: string
+    prospects: ProspectType[]
+}
 
 function hasEmailContent(emails: string[]): boolean {
     return emails.some((email) => Boolean(email.trim()))
@@ -59,47 +67,13 @@ function problemSourceLabel(source: ProspectType['emailImprovement']['problemSou
     return 'Writing'
 }
 
-function judgementLine(judgement: EmailJudgementType, index: number): string {
-    const byEmail = judgement.byEmail[index]
-    if (!byEmail) {
-        return ''
-    }
-
-    if (byEmail.verdict === 'ready') {
-        return byEmail.summary
-    }
-
-    return byEmail.checks
-        .filter((item) => !item.passed)
-        .map((item) => `${item.label}: ${item.evidence}`)
-        .join(' · ')
-}
-
-function ContextJudgement({ judgement }: { judgement: EmailJudgementType }): ReactElement {
-    return (
-        <div className="judgement">
-            <p className={`judgement-verdict ${judgement.overallVerdict}`}>
-                {judgement.overallVerdict === 'ready' ? 'Grounded in context' : 'Not fully grounded'}
-            </p>
-            <p className="small">{judgement.overallSummary}</p>
-            {judgement.gaps.map((gap) => (
-                <p className="small judgement-gap" key={gap}>
-                    {gap}
-                </p>
-            ))}
-        </div>
-    )
-}
-
 function EmailDrafts({
     emails,
-    judgement,
     prospectId,
     phase,
     running,
 }: {
     emails: string[]
-    judgement: EmailJudgementType
     prospectId: string
     phase: OutreachStatusType['phase'] | undefined
     running: boolean
@@ -112,7 +86,6 @@ function EmailDrafts({
                     {sequenceWaitingCopy(phase)}
                 </p>
             ) : null}
-            <ContextJudgement judgement={judgement} />
             {emails.map((email, index) => {
                 if (email) {
                     return (
@@ -120,7 +93,6 @@ function EmailDrafts({
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {emailDraftForPreview(email, index)}
                             </ReactMarkdown>
-                            <p className="small email-judgement">{judgementLine(judgement, index)}</p>
                         </div>
                     )
                 }
@@ -169,8 +141,6 @@ function SequenceSnapshots({
 }): ReactElement {
     const showFinalTab = hasEmailContent(prospect.emailsV2) || phase === 'writing-v2' || phase === 'done'
     const showImprovedTab = hasEmailContent(prospect.emailsV1) && hasEmailContent(prospect.emailsV2)
-    const firstJudgement = prospect.emailJudgementV1
-    const finalJudgement = prospect.emailJudgement
     const improvement = prospect.emailImprovement
 
     return (
@@ -214,7 +184,6 @@ function SequenceSnapshots({
                 <div role="tabpanel">
                     <EmailDrafts
                         emails={prospect.emailsV1}
-                        judgement={firstJudgement}
                         prospectId={`${prospect.id}-first`}
                         phase={phase === 'writing-v2' ? 'writing-v1' : phase}
                         running={running && !hasEmailContent(prospect.emailsV1)}
@@ -230,7 +199,6 @@ function SequenceSnapshots({
                                 ? prospect.emailsV2
                                 : prospect.emailsV1
                         }
-                        judgement={finalJudgement}
                         prospectId={`${prospect.id}-final`}
                         phase={phase}
                         running={running && !hasEmailContent(prospect.emailsV2)}
@@ -249,22 +217,8 @@ function SequenceSnapshots({
                     <p>{improvement.problemSourceWhy}</p>
                     <h3>What changed</h3>
                     <p>{improvement.whatChanged}</p>
-                    {improvement.fixedGaps.length > 0 ? (
-                        <ul>
-                            {improvement.fixedGaps.map((gap) => (
-                                <li key={gap}>{gap}</li>
-                            ))}
-                        </ul>
-                    ) : null}
                     <h3>How the emails improved</h3>
                     <p>{improvement.howImproved}</p>
-                    {improvement.remainingGaps.length > 0 ? (
-                        <ul>
-                            {improvement.remainingGaps.map((gap) => (
-                                <li key={gap}>{gap}</li>
-                            ))}
-                        </ul>
-                    ) : null}
                 </div>
             ) : null}
         </div>
@@ -418,33 +372,54 @@ export default function Page(): ReactElement {
         }
     }, [websetId, running])
 
-    function downloadRun(): void {
-        if (!status) {
-            return
-        }
-
-        const blob = new Blob(
-            [
-                JSON.stringify(
-                    {
-                        search,
-                        brief,
-                        websetId,
-                        dashboardUrl,
-                        prospects: status.prospects,
-                    },
-                    null,
-                    2,
-                ),
-            ],
-            { type: 'application/json' },
-        )
+    function downloadSavedRun(saved: SavedRun): void {
+        const blob = new Blob([JSON.stringify(saved, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
         link.download = 'run.json'
         link.click()
         URL.revokeObjectURL(url)
+    }
+
+    function downloadRun(): void {
+        if (!status) {
+            return
+        }
+
+        downloadSavedRun({
+            search,
+            brief,
+            websetId,
+            dashboardUrl,
+            prospects: status.prospects,
+        })
+    }
+
+    async function loadExampleRun(): Promise<void> {
+        setError('')
+        const response = await fetch('/api/example-run')
+        if (!response.ok) {
+            setError('Example run is not saved yet')
+            return
+        }
+
+        const saved = (await response.json()) as SavedRun
+        setSearch(saved.search)
+        setBrief(saved.brief)
+        setWebsetId(saved.websetId)
+        setDashboardUrl(saved.dashboardUrl || '')
+        setRunning(false)
+        setSequenceTabs({})
+        setStatus({
+            websetId: saved.websetId,
+            dashboardUrl: saved.dashboardUrl || '',
+            status: 'done',
+            phase: 'done',
+            itemCount: saved.prospects.length,
+            error: '',
+            prospects: saved.prospects,
+        })
     }
 
     return (
@@ -562,9 +537,15 @@ export default function Page(): ReactElement {
                             <button type="submit" disabled={running}>
                                 {running ? 'Running Websets…' : 'Run outreach research'}
                             </button>
+                            <button type="button" className="secondary" onClick={loadExampleRun} disabled={running}>
+                                Load example run
+                            </button>
+                            <a href="/api/example-run" download="run.json">
+                                Download example run
+                            </a>
                             {status?.status === 'done' ? (
                                 <button type="button" className="secondary" onClick={downloadRun}>
-                                    Download reviewed run JSON
+                                    Download this run JSON
                                 </button>
                             ) : null}
                             {dashboardUrl ? (

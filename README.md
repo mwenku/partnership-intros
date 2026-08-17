@@ -1,6 +1,6 @@
-# Souk partner-outreach prototype
+# partner-outreach prototype
 
-Single-page prototype: a partner search and vendor brief go into a **Tavily-powered Webset flow**, which finds 3–5 people, verifies them, researches signals, and writes a four-email sequence. Souk would send these on the vendor's behalf. **The prototype does not send any real emails.** It stops at reviewed sequences ready for potential use.
+Single-page prototype: a partner search and vendor brief go into a **Tavily-powered Webset flow**, which finds 3–5 people, verifies them, researches signals, and writes a four-email sequence. we would send these on the vendor's behalf. **The prototype does not send any real emails.** It stops at reviewed sequences ready for potential use.
 
 ## Setup
 

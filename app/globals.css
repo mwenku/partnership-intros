@@ -424,10 +424,6 @@ button.secondary {
   background: #fff;
 }
 
-.judgement {
-  margin: 0 0 14px;
-}
-
 .judgement-verdict {
   font-family: "Gill Sans", "Trebuchet MS", sans-serif;
   font-size: 13px;
@@ -435,15 +431,6 @@ button.secondary {
   text-transform: uppercase;
   margin: 0 0 6px;
   color: var(--accent);
-}
-
-.judgement-verdict.revise {
-  color: var(--warn);
-}
-
-.judgement-gap,
-.email-judgement {
-  margin: 0 0 6px;
 }
 
 .improvement h3 {

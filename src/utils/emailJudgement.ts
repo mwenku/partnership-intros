@@ -518,17 +518,17 @@ function explainEmailImprovement(
     const weakInFirst =
         first.gaps.length === 0
             ? 'The first snapshot already used the actual vendor, recipient, opportunity, and sourced research.'
-            : `The first snapshot failed ${first.gaps.length} context check${first.gaps.length === 1 ? '' : 's'}: ${first.gaps.join('; ')}.`
-    let whatChanged = `The rewrite fixed: ${fixedGaps.join('; ')}.`
+            : 'The first snapshot did not use enough of the actual vendor, recipient, opportunity, or sourced research.'
+    let whatChanged = 'The rewrite used more of the vendor, recipient, opportunity, and sourced research.'
     if (fixedGaps.length === 0 && first.gaps.length === 0 && remainingGaps.length === 0) {
-        whatChanged = 'The rewrite kept the same grounded checks. No failed context checks were added or removed.'
+        whatChanged = 'The rewrite kept the same grounded checks.'
     } else if (fixedGaps.length === 0) {
-        whatChanged = `The rewrite did not fix the first-snapshot gaps: ${first.gaps.join('; ') || 'none'}.`
+        whatChanged = 'The rewrite did not fix the first-snapshot gaps.'
     }
 
-    let howImproved = `The final snapshot still fails ${final.gaps.length} context check${final.gaps.length === 1 ? '' : 's'}: ${final.gaps.join('; ')}.`
+    let howImproved = 'The final snapshot is still missing some vendor, recipient, opportunity, or sourced research.'
     if (final.overallVerdict === 'ready') {
-        howImproved = `The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.${fixedGaps.length ? ` Newly passing checks: ${fixedGaps.join('; ')}.` : ''}`
+        howImproved = 'The final snapshot is grounded in the actual vendor, recipient, opportunity, and sourced research.'
     }
 
     return {
